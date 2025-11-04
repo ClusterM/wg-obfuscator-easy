@@ -44,4 +44,4 @@ release:
 	rm -rf static
 	cd frontend && npm install
 	cd frontend && npm run build
-	docker buildx build --platform $(PLATFORMS) -t $(IMAGE_NAME):$(VERSION) --push .
+	docker buildx build --platform $(PLATFORMS) -t $(IMAGE_NAME):$(VERSION) -t $(IMAGE_NAME):latest --push .
