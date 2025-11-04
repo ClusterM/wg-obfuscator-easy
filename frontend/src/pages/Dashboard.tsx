@@ -90,12 +90,8 @@ export default function Dashboard() {
             </div>
           )}
           <div className="status-item">
-            <span className="label">{t('dashboard.clientsCount')}:</span>
-            <span className="value">{status?.clients_count || 0}</span>
-          </div>
-          <div className="status-item">
-            <span className="label">{t('dashboard.connectedClientsCount')}:</span>
-            <span className="value">{status?.connected_clients_count || 0}</span>
+            <span className="label">{t('dashboard.clientsConnectedTotal')}:</span>
+            <span className="value">{status?.connected_clients_count || 0} / {status?.clients_count || 0}</span>
           </div>
         </div>
 

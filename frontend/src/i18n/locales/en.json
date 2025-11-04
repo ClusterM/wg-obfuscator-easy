@@ -46,6 +46,7 @@
     "status": "Status",
     "clientsCount": "Clients",
     "connectedClientsCount": "Connected",
+    "clientsConnectedTotal": "Clients connected/total",
     "wireguardStatus": "WireGuard",
     "obfuscatorStatus": "Obfuscator",
     "appVersion": "Application version",

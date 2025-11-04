@@ -46,6 +46,7 @@
     "status": "Статус",
     "clientsCount": "Клиентов",
     "connectedClientsCount": "Подключено",
+    "clientsConnectedTotal": "Клиентов подключено/всего",
     "wireguardStatus": "WireGuard",
     "obfuscatorStatus": "Обфускатор",
     "appVersion": "Версия приложения",
