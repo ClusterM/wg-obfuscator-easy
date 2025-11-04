@@ -21,6 +21,9 @@ import os
 import signal
 import atexit
 import logging
+import ssl
+import threading
+import time
 
 from .config import ConfigManager
 from .config.constants import API_PORT
@@ -51,6 +54,8 @@ logger = logging.getLogger(__name__)
 
 # Flag to prevent multiple cleanup calls
 _cleanup_called = False
+# Flag to signal restart needed (for SSL certificate reload)
+_restart_needed = False
 
 
 def cleanup_on_exit(wg_manager, obfuscator_manager):
@@ -152,6 +157,18 @@ def main():
         traffic_stats_collector
     )
     
+    # Handle SIGHUP for graceful restart (e.g., for SSL certificate reload)
+    # Must be set after app is created
+    def sighup_handler(signum, frame):
+        global _restart_needed
+        logger.info("Received SIGHUP, restarting to reload SSL certificates...")
+        _restart_needed = True
+        # Exit gracefully - Docker/systemd will restart the container/service
+        cleanup()
+        exit(0)
+    
+    signal.signal(signal.SIGHUP, sighup_handler)
+    
     # Start traffic stats collector
     traffic_stats_collector.start()
     
@@ -159,9 +176,71 @@ def main():
     use_reloader = os.getenv("USE_RELOADER", "false").lower() == "true"
     debug = os.getenv("FLASK_DEBUG", "false").lower() == "true"
     
+    # Configure SSL if certificates are provided
+    ssl_context = None
+    ssl_cert_file = os.getenv("SSL_CERT_FILE")
+    ssl_key_file = os.getenv("SSL_KEY_FILE")
+    
+    # Track certificate file modification times for change detection
+    ssl_cert_mtime = None
+    ssl_key_mtime = None
+    
+    def get_ssl_context():
+        """Get SSL context from certificate files, or None if not configured"""
+        if ssl_cert_file and ssl_key_file:
+            if os.path.exists(ssl_cert_file) and os.path.exists(ssl_key_file):
+                return (ssl_cert_file, ssl_key_file)
+        return None
+    
+    if ssl_cert_file and ssl_key_file:
+        if os.path.exists(ssl_cert_file) and os.path.exists(ssl_key_file):
+            ssl_context = get_ssl_context()
+            ssl_cert_mtime = os.path.getmtime(ssl_cert_file)
+            ssl_key_mtime = os.path.getmtime(ssl_key_file)
+            logger.info(f"SSL enabled: using certificate {ssl_cert_file} and key {ssl_key_file}")
+            logger.info("Note: SSL certificates are loaded at startup. To reload after renewal, send SIGHUP or restart the container.")
+        else:
+            logger.warning(f"SSL certificates specified but files not found: cert={ssl_cert_file}, key={ssl_key_file}")
+            logger.warning("Continuing without HTTPS")
+    elif ssl_cert_file or ssl_key_file:
+        logger.warning("SSL_CERT_FILE and SSL_KEY_FILE must both be set to enable HTTPS")
+    
+    # Monitor SSL certificate files for changes (runs in background thread)
+    def monitor_ssl_certificates():
+        """Monitor SSL certificate files for changes and automatically reload"""
+        if not ssl_cert_file or not ssl_key_file:
+            return
+        
+        check_interval = 60  # Check every minute
+        while True:
+            try:
+                time.sleep(check_interval)
+                if os.path.exists(ssl_cert_file) and os.path.exists(ssl_key_file):
+                    current_cert_mtime = os.path.getmtime(ssl_cert_file)
+                    current_key_mtime = os.path.getmtime(ssl_key_file)
+                    
+                    if (current_cert_mtime != ssl_cert_mtime or 
+                        current_key_mtime != ssl_key_mtime):
+                        logger.info("SSL certificate files have been modified, reloading...")
+                        # Update mtimes to avoid repeated reloads
+                        nonlocal ssl_cert_mtime, ssl_key_mtime
+                        ssl_cert_mtime = current_cert_mtime
+                        ssl_key_mtime = current_key_mtime
+                        # Send SIGHUP to current process to trigger reload
+                        os.kill(os.getpid(), signal.SIGHUP)
+            except Exception as e:
+                logger.debug(f"Error monitoring SSL certificates: {e}")
+    
+    # Start certificate monitoring thread if SSL is enabled
+    if ssl_context:
+        cert_monitor_thread = threading.Thread(target=monitor_ssl_certificates, daemon=True)
+        cert_monitor_thread.start()
+        logger.debug("SSL certificate monitoring thread started")
+    
     # Start Flask server
     try:
-        logger.info(f"Starting Flask server on 0.0.0.0:{API_PORT}")
+        protocol = "HTTPS" if ssl_context else "HTTP"
+        logger.info(f"Starting Flask server on 0.0.0.0:{API_PORT} ({protocol})")
         # Suppress Werkzeug and Flask startup messages
         import sys
         
@@ -193,7 +272,14 @@ def main():
         try:
             # For production, use threaded mode for concurrent request handling
             threaded = os.getenv("FLASK_THREADED", "true").lower() == "true"
-            app.run(host='0.0.0.0', port=API_PORT, debug=debug, use_reloader=use_reloader, threaded=threaded)
+            app.run(
+                host='0.0.0.0', 
+                port=API_PORT, 
+                debug=debug, 
+                use_reloader=use_reloader, 
+                threaded=threaded,
+                ssl_context=ssl_context
+            )
         finally:
             # Restore original stdout/stderr
             sys.stdout = original_stdout
