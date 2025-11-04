@@ -212,10 +212,22 @@ class ObfuscatorManager:
             # Version is in first line: "Starting WireGuard Obfuscator v1.5 (linux/amd64)"
             if result.stderr:
                 first_line = result.stderr.split('\n')[0]
-                # Extract version from "v1.5 (linux/amd64)" pattern
+                # Extract version
+                # Possible patterns:
+                # fprintf(stderr, "Starting WireGuard Obfuscator (commit " COMMIT " @ " WG_OBFUSCATOR_GIT_REPO ")\n");
+                # fprintf(stderr, "Starting WireGuard Obfuscator (commit " COMMIT " @ " WG_OBFUSCATOR_GIT_REPO ") (" ARCH ")\n");
+                # fprintf(stderr, "Starting WireGuard Obfuscator v" WG_OBFUSCATOR_VERSION "\n");
+                # fprintf(stderr, "Starting WireGuard Obfuscator v" WG_OBFUSCATOR_VERSION " (" ARCH ")\n");
                 match = re.search(r'Starting WireGuard Obfuscator (.*)', first_line)
-                if match:
-                    version = match.group(1).strip('()').split('@')[0].strip()
+                if match:                    
+                    version = match.group(1).strip()
+                    if version.startswith('(') and version.endswith(')'):
+                        # Nighly build version, remove repo URL
+                        match = re.search(r'\((.*)@.*?\)(.*)', version)
+                        if match:
+                            version = f"{match.group(1).strip()} {match.group(2).strip()}"
+                        else:
+                            version = version.strip('()')
                     # Cache the version
                     self._cached_version = version
                     logger.debug(f"Cached obfuscator version: {version}")
