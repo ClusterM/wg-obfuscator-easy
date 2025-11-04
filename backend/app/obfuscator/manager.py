@@ -215,7 +215,7 @@ class ObfuscatorManager:
                 # Extract version from "v1.5 (linux/amd64)" pattern
                 match = re.search(r'Starting WireGuard Obfuscator (.*)', first_line)
                 if match:
-                    version = match.group(1)
+                    version = match.group(1).strip('()').split('@')[0].strip()
                     # Cache the version
                     self._cached_version = version
                     logger.debug(f"Cached obfuscator version: {version}")
