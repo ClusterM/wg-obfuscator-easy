@@ -13,7 +13,7 @@
 # 7. Configure Caddy for HTTPS with automatic SSL certificates
 # 8. Display access information and credentials
 #
-# Usage: bash <(curl -Ls https://raw.githubusercontent.com/your-repo/wg-obf-easy/main/install.sh)
+# Usage: bash <(curl -Ls https://raw.githubusercontent.com/clustermeerkat/wg-obfuscator-easy/master/install.sh)
 #        or: sudo bash install.sh
 #
 
