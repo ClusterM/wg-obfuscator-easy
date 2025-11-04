@@ -20,13 +20,19 @@ COPY static /app/static
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    tini iptables iproute2 procps wireguard python3 python3-pip
-RUN rm -rf /var/lib/apt/lists/*
+    tini iptables iproute2 procps wireguard python3 python3-pip && \
+    pip install --no-cache-dir -r requirements.txt && \
+    apt-get purge -y python3-pip && \
+    apt-get autoremove -y && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    rm -rf /tmp/* /var/tmp/* && \
+    find /usr/lib/python3* -type d -name __pycache__ -exec rm -r {} + 2>/dev/null || true && \
+    find /usr/lib/python3* -type f -name "*.pyc" -delete 2>/dev/null || true && \
+    find /usr/lib/python3* -type f -name "*.pyo" -delete 2>/dev/null || true
 
 # for debug
 #RUN apt-get install -y \
 #    iputils-ping curl psmisc net-tools
-
-RUN pip install -r requirements.txt
 
 ENTRYPOINT ["tini", "--", "./docker-entrypoint.sh"]
