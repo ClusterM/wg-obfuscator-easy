@@ -19,6 +19,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Constants and default values for the application"""
 
 import os
+import sys
 
 # Port configuration
 INTERNAL_WG_PORT = 65535  # Any
@@ -55,8 +56,13 @@ MASKING_TYPES_NAMES = {
 # Token expiration
 TOKEN_EXPIRES_IN = 86400  # 24 hours in seconds
 
-# Application version
-APP_VERSION = "v1.0"
+# Application version (with 'v' prefix)
+# Add backend directory to path to import version
+backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
+from version import VERSION
+APP_VERSION = f"v{VERSION}"
 
 # Default WireGuard configuration
 DEFAULT_WG_CONFIG = {

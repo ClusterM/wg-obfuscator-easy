@@ -5,16 +5,6 @@ FROM clustermeerkat/wg-obfuscator:1.5 AS obf
 
 
 # ---
-# Container to build backend
-# ---
-FROM node:22-alpine AS frontend
-WORKDIR /app
-COPY frontend /app
-RUN npm install
-RUN npm run build
-
-
-# ---
 # Main container
 # ---
 FROM debian:trixie-slim
@@ -25,7 +15,8 @@ ENV PIP_ROOT_USER_ACTION=ignore
 
 COPY --from=obf /app/wg-obfuscator /usr/bin/wg-obfuscator
 COPY backend /app
-COPY --from=frontend /static /app/static
+# Copy pre-built frontend static files (built outside Docker)
+COPY static /app/static
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
