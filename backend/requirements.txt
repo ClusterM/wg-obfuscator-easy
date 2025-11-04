@@ -1,4 +1,5 @@
 Flask==3.0.0
 Flask-CORS==4.0.0
+Flask-Limiter==3.5.0
 requests==2.31.0
 

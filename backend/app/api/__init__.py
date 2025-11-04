@@ -20,6 +20,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import os
 from flask import Flask, send_from_directory
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 
 def get_web_prefix():
@@ -55,6 +57,15 @@ def create_app(config_manager, client_manager, wg_manager, obfuscator_manager,
     # Enable CORS for all routes and origins
     CORS(app, resources={r"/*": {"origins": "*"}})
     
+    # Initialize rate limiter
+    limiter = Limiter(
+        app=app,
+        key_func=get_remote_address,
+        default_limits=["200 per hour", "50 per minute"],
+        storage_uri="memory://"
+    )
+    app.limiter = limiter
+    
     # Get web prefix from environment
     web_prefix = get_web_prefix()
     
@@ -71,6 +82,11 @@ def create_app(config_manager, client_manager, wg_manager, obfuscator_manager,
     
     # Register blueprints with prefix (API routes must be registered first)
     from . import auth, config_routes, clients, stats, health
+    
+    # Apply rate limiting to login endpoint before registering blueprint
+    # Flask-Limiter works with blueprints when app is passed to Limiter
+    auth.login = limiter.limit("5 per minute")(auth.login)
+    
     app.register_blueprint(auth.bp, url_prefix=web_prefix + '/api/auth')
     app.register_blueprint(config_routes.bp, url_prefix=web_prefix + '/api/config')
     app.register_blueprint(clients.bp, url_prefix=web_prefix + '/api/clients')
