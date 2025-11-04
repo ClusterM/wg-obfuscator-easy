@@ -55,6 +55,9 @@ MASKING_TYPES_NAMES = {
 # Token expiration
 TOKEN_EXPIRES_IN = 86400  # 24 hours in seconds
 
+# Application version
+APP_VERSION = "v1.0"
+
 # Default WireGuard configuration
 DEFAULT_WG_CONFIG = {
     "subnet": "10.6.13",

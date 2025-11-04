@@ -22,6 +22,8 @@ import logging
 import time
 import json
 
+from ..config.constants import APP_VERSION
+
 logger = logging.getLogger(__name__)
 
 bp = Blueprint('stats', __name__)
@@ -89,6 +91,7 @@ def get_status():
             "server_public_key": config.get("server_public_key"),
             "clients_count": len(config_manager.clients),
             "connected_clients_count": connected_clients_count,
+            "version": APP_VERSION,
             "wireguard": {
                 "running": wg_status["running"],
                 "error": wg_status.get("error")

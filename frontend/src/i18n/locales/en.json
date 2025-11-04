@@ -48,6 +48,7 @@
     "connectedClientsCount": "Connected",
     "wireguardStatus": "WireGuard",
     "obfuscatorStatus": "Obfuscator",
+    "appVersion": "Application version",
     "obfuscatorVersion": "Obfuscator version",
     "running": "Running",
     "stopped": "Stopped",

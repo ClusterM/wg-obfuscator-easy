@@ -1,0 +1,1343 @@
+openapi: 3.0.3
+info:
+  title: WireGuard Obfuscator Easy API
+  description: |
+    REST API for managing WireGuard VPN server with obfuscation support.
+    Provides endpoints for authentication, client management, server configuration,
+    statistics, and monitoring.
+  version: 1.0.0
+  contact:
+    name: Alexey Cluster
+    email: cluster@cluster.wtf
+  license:
+    name: GPL-3.0
+    url: https://www.gnu.org/licenses/gpl-3.0.html
+
+servers:
+  - url: http://localhost:5000
+    description: Local development server
+  - url: /{webPrefix}
+    description: Production server with web prefix
+    variables:
+      webPrefix:
+        default: ""
+        description: Optional web prefix (e.g., /vpn)
+
+tags:
+  - name: Authentication
+    description: Authentication and user management endpoints
+  - name: Clients
+    description: WireGuard client management
+  - name: Configuration
+    description: Server configuration management
+  - name: Statistics
+    description: Server and client statistics
+  - name: Health
+    description: Health check endpoints
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Check if the service is running
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /api/auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Login
+      description: |
+        Authenticate and receive an access token.
+        Rate limited to 5 attempts per minute per IP address.
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  description: Admin username
+                password:
+                  type: string
+                  format: password
+                  description: Admin password
+      responses:
+        '200':
+          description: Successful authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthToken'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          description: Too many login attempts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/auth/status:
+    get:
+      tags:
+        - Authentication
+      summary: Get authentication status
+      description: Check if authentication is enabled
+      operationId: getAuthStatus
+      responses:
+        '200':
+          description: Authentication status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                    description: Whether authentication is enabled
+
+  /api/auth/credentials:
+    get:
+      tags:
+        - Authentication
+      summary: Get admin credentials
+      description: Get admin username (password is not returned)
+      operationId: getCredentials
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Admin username
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  username:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/auth/change-password:
+    post:
+      tags:
+        - Authentication
+      summary: Change admin password
+      description: Change admin password. All existing tokens will be revoked.
+      operationId: changePassword
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - old_password
+                - new_password
+              properties:
+                old_password:
+                  type: string
+                  format: password
+                new_password:
+                  type: string
+                  format: password
+      responses:
+        '200':
+          description: Password changed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/auth/change-credentials:
+    post:
+      tags:
+        - Authentication
+      summary: Change admin credentials
+      description: Change admin username and/or password. All existing tokens will be revoked.
+      operationId: changeCredentials
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                new_username:
+                  type: string
+                  description: New admin username (optional)
+                old_password:
+                  type: string
+                  format: password
+                  description: Current password (required if changing password)
+                new_password:
+                  type: string
+                  format: password
+                  description: New password (required if changing password)
+      responses:
+        '200':
+          description: Credentials changed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/clients:
+    get:
+      tags:
+        - Clients
+      summary: List all clients
+      description: Get list of all WireGuard clients with connection statistics
+      operationId: getClients
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of clients
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  $ref: '#/components/schemas/Client'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags:
+        - Clients
+      summary: Create new client
+      description: Create a new WireGuard client
+      operationId: createClient
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+              properties:
+                username:
+                  type: string
+                  description: Client username
+                obfuscation:
+                  type: boolean
+                  default: true
+                  description: Enable obfuscation for this client
+                enabled:
+                  type: boolean
+                  default: true
+                  description: Enable client
+      responses:
+        '201':
+          description: Client created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Client'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/clients/{username}:
+    get:
+      tags:
+        - Clients
+      summary: Get client details
+      description: Get detailed information about a specific client
+      operationId: getClient
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Username'
+      responses:
+        '200':
+          description: Client information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Client'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    patch:
+      tags:
+        - Clients
+      summary: Update client
+      description: Update client configuration
+      operationId: updateClient
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Username'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                allowed_ips:
+                  type: array
+                  items:
+                    type: string
+                    pattern: '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2}$'
+                  description: Allowed IP addresses in CIDR format
+                obfuscator_port:
+                  type: integer
+                  nullable: true
+                  minimum: 1
+                  maximum: 65535
+                  description: Custom obfuscator port (null to use default)
+                masking_type_override:
+                  type: string
+                  nullable: true
+                  enum: [none, obfs4, scramblesuit]
+                  description: Override masking type for this client (null to use server default)
+                verbosity_level:
+                  type: string
+                  enum: [0, 1, 2, 3, 4]
+                  description: Verbosity level (0-4)
+                enabled:
+                  type: boolean
+                  description: Enable/disable client
+      responses:
+        '200':
+          description: Client updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Client'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags:
+        - Clients
+      summary: Delete client
+      description: Delete a WireGuard client
+      operationId: deleteClient
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Username'
+      responses:
+        '200':
+          description: Client deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/clients/{username}/regenerate-keys:
+    post:
+      tags:
+        - Clients
+      summary: Regenerate client keys
+      description: Generate new key pair for a client
+      operationId: regenerateClientKeys
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Username'
+      responses:
+        '200':
+          description: Keys regenerated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  private_key:
+                    type: string
+                  public_key:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/clients/{username}/config/wireguard:
+    get:
+      tags:
+        - Clients
+      summary: Get WireGuard configuration
+      description: Download WireGuard configuration file for a client
+      operationId: getClientWireGuardConfig
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Username'
+      responses:
+        '200':
+          description: WireGuard configuration file
+          content:
+            text/plain:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/clients/{username}/config/obfuscator:
+    get:
+      tags:
+        - Clients
+      summary: Get obfuscator configuration
+      description: Download obfuscator configuration file for a client
+      operationId: getClientObfuscatorConfig
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Username'
+      responses:
+        '200':
+          description: Obfuscator configuration file
+          content:
+            text/plain:
+              schema:
+                type: string
+        '400':
+          description: Obfuscation is disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/config:
+    get:
+      tags:
+        - Configuration
+      summary: Get server configuration
+      description: Get current server settings (read-only)
+      operationId: getConfig
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Server configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerConfig'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    patch:
+      tags:
+        - Configuration
+      summary: Update server configuration
+      description: Update server configuration parameters
+      operationId: updateConfig
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                subnet:
+                  type: string
+                  pattern: '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.0/24$'
+                  description: Server subnet in CIDR format (X.Y.Z.0/24)
+                obfuscation:
+                  type: boolean
+                  description: Enable/disable obfuscation
+                obfuscation_key:
+                  type: string
+                  maxLength: 300
+                  description: Obfuscation key (ASCII only, max 300 characters)
+                obfuscator_verbosity:
+                  type: string
+                  enum: [0, 1, 2, 3, 4]
+                  description: Obfuscator verbosity level (0-4)
+                verbosity_level:
+                  type: string
+                  enum: [0, 1, 2, 3, 4]
+                  description: Obfuscator verbosity level (0-4), alias for obfuscator_verbosity
+                masking_type:
+                  type: string
+                  enum: [none, obfs4, scramblesuit]
+                  description: Masking type
+                masking_forced:
+                  type: boolean
+                  description: Force masking type for all clients
+                enabled:
+                  type: boolean
+                  description: Enable/disable WireGuard server
+      responses:
+        '200':
+          description: Configuration updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerConfig'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/config/regenerate-keys:
+    post:
+      tags:
+        - Configuration
+      summary: Regenerate server keys
+      description: Generate new server key pair
+      operationId: regenerateServerKeys
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Keys regenerated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  server_public_key:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/status:
+    get:
+      tags:
+        - Statistics
+      summary: Get server status
+      description: Get server status including WireGuard and obfuscator status
+      operationId: getStatus
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Server status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/stats:
+    get:
+      tags:
+        - Statistics
+      summary: Get WireGuard statistics
+      description: Get WireGuard statistics for all peers
+      operationId: getStats
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: WireGuard statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WireGuardStats'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '503':
+          description: WireGuard interface not found or not running
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/stats/{username}:
+    get:
+      tags:
+        - Statistics
+      summary: Get client statistics
+      description: Get WireGuard statistics for a specific client
+      operationId: getClientStats
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Username'
+      responses:
+        '200':
+          description: Client statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PeerStats'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '503':
+          description: WireGuard interface not found or not running
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/logs/obfuscator:
+    get:
+      tags:
+        - Statistics
+      summary: Get obfuscator logs
+      description: Get last N lines from in-memory obfuscator logs
+      operationId: getObfuscatorLogs
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: lines
+          in: query
+          description: Number of lines to return
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10000
+            default: 100
+      responses:
+        '200':
+          description: Obfuscator logs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  lines:
+                    type: array
+                    items:
+                      type: string
+                  total_lines:
+                    type: integer
+                  requested_lines:
+                    type: integer
+                  returned_lines:
+                    type: integer
+                  message:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/clients/{username}/traffic-stats:
+    get:
+      tags:
+        - Statistics
+      summary: Get client traffic statistics
+      description: Get historical traffic statistics for a client
+      operationId: getClientTrafficStats
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Username'
+        - name: start_time
+          in: query
+          description: Start time (Unix timestamp in seconds)
+          required: false
+          schema:
+            type: integer
+        - name: end_time
+          in: query
+          description: End time (Unix timestamp in seconds)
+          required: false
+          schema:
+            type: integer
+        - name: aggregation_interval
+          in: query
+          description: Aggregation interval in seconds
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 3600
+      responses:
+        '200':
+          description: Traffic statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrafficStats'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '503':
+          description: Traffic statistics collector not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/clients/{username}/traffic-stats/stream:
+    get:
+      tags:
+        - Statistics
+      summary: Stream real-time traffic statistics
+      description: Stream real-time traffic statistics using Server-Sent Events (SSE)
+      operationId: streamClientTrafficStats
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Username'
+        - name: token
+          in: query
+          description: Authentication token (alternative to Authorization header for EventSource)
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '503':
+          description: Traffic statistics collector not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/clients/{username}/traffic-stats/all-time:
+    get:
+      tags:
+        - Statistics
+      summary: Get all-time traffic statistics
+      description: Get all-time aggregated traffic statistics for a client
+      operationId: getAllTimeTrafficStats
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Username'
+      responses:
+        '200':
+          description: All-time traffic statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  username:
+                    type: string
+                  all_time_rx_bytes:
+                    type: integer
+                  all_time_tx_bytes:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '503':
+          description: Traffic statistics collector not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/clients/{username}/traffic-stats/clear-all-time:
+    post:
+      tags:
+        - Statistics
+      summary: Clear all-time traffic statistics
+      description: Clear all-time traffic statistics for a client (resets counters, but keeps history)
+      operationId: clearAllTimeTrafficStats
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Username'
+      responses:
+        '200':
+          description: Statistics cleared successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  username:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '503':
+          description: Traffic statistics collector not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/grafana/clients:
+    get:
+      tags:
+        - Statistics
+      summary: Get Grafana clients list
+      description: Get list of all clients for Grafana query builder
+      operationId: getGrafanaClients
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of clients
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    text:
+                      type: string
+                    value:
+                      type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/grafana/status:
+    get:
+      tags:
+        - Statistics
+      summary: Get Grafana status metrics
+      description: Get server status metrics for Grafana
+      operationId: getGrafanaStatus
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Server metrics as time series
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    target:
+                      type: string
+                    datapoints:
+                      type: array
+                      items:
+                        type: array
+                        items:
+                          - type: number
+                          - type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/grafana/clients/{username}/traffic:
+    get:
+      tags:
+        - Statistics
+      summary: Get Grafana traffic data
+      description: Get traffic statistics for Grafana JSON API data source (returns speeds)
+      operationId: getGrafanaTraffic
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Username'
+        - name: from
+          in: query
+          description: Start time (Unix timestamp in seconds)
+          required: false
+          schema:
+            type: integer
+        - name: to
+          in: query
+          description: End time (Unix timestamp in seconds)
+          required: false
+          schema:
+            type: integer
+        - name: interval
+          in: query
+          description: Aggregation interval in seconds
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Traffic data in Grafana format
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    target:
+                      type: string
+                    datapoints:
+                      type: array
+                      items:
+                        type: array
+                        items:
+                          - type: number
+                          - type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '503':
+          description: Traffic statistics collector not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/grafana/clients/{username}/traffic-bytes:
+    get:
+      tags:
+        - Statistics
+      summary: Get Grafana traffic bytes
+      description: Get total traffic (bytes) for Grafana JSON API data source
+      operationId: getGrafanaTrafficBytes
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Username'
+        - name: from
+          in: query
+          description: Start time (Unix timestamp in seconds)
+          required: false
+          schema:
+            type: integer
+        - name: to
+          in: query
+          description: End time (Unix timestamp in seconds)
+          required: false
+          schema:
+            type: integer
+        - name: interval
+          in: query
+          description: Aggregation interval in seconds
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Traffic bytes in Grafana format
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    target:
+                      type: string
+                    datapoints:
+                      type: array
+                      items:
+                        type: array
+                        items:
+                          - type: number
+                          - type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '503':
+          description: Traffic statistics collector not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Bearer token authentication. Token is obtained from the /api/auth/login endpoint.
+        Include the token in the Authorization header as: "Bearer <token>"
+
+  parameters:
+    Username:
+      name: username
+      in: path
+      required: true
+      description: Client username
+      schema:
+        type: string
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+
+    AuthToken:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: OAuth 2.0 access token
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          description: Token expiration time in seconds
+
+    Client:
+      type: object
+      properties:
+        username:
+          type: string
+        public_key:
+          type: string
+        private_key:
+          type: string
+        allowed_ips:
+          type: array
+          items:
+            type: string
+          description: Allowed IP addresses in CIDR format
+        obfuscator_port:
+          type: integer
+          nullable: true
+          description: Custom obfuscator port
+        masking_type_override:
+          type: string
+          nullable: true
+          enum: [none, obfs4, scramblesuit]
+          description: Override masking type for this client
+        verbosity_level:
+          type: string
+          enum: [0, 1, 2, 3, 4]
+          description: Verbosity level
+        enabled:
+          type: boolean
+          description: Whether client is enabled
+        is_connected:
+          type: boolean
+          description: Whether client is currently connected
+        latest_handshake:
+          type: integer
+          description: Unix timestamp of last handshake
+        all_time_rx_bytes:
+          type: integer
+          description: Total received bytes (all time)
+        all_time_tx_bytes:
+          type: integer
+          description: Total sent bytes (all time)
+
+    ServerConfig:
+      type: object
+      properties:
+        external_ip:
+          type: string
+          format: ipv4
+          description: External IP address
+        external_port:
+          type: integer
+          description: External port number
+        server_public_key:
+          type: string
+          description: Server public key
+        subnet:
+          type: string
+          nullable: true
+          description: Server subnet in CIDR format
+        server_ip:
+          type: string
+          description: Server IP address
+        enabled:
+          type: boolean
+          description: Whether WireGuard server is enabled
+        obfuscation:
+          type: boolean
+          description: Whether obfuscation is enabled
+        obfuscation_key:
+          type: string
+          description: Obfuscation key
+        obfuscator_verbosity:
+          type: string
+          enum: [0, 1, 2, 3, 4]
+          description: Obfuscator verbosity level
+        masking_type:
+          type: string
+          enum: [none, obfs4, scramblesuit]
+          description: Masking type
+        masking_forced:
+          type: boolean
+          description: Whether masking type is forced for all clients
+
+    ServerStatus:
+      type: object
+      properties:
+        external_ip:
+          type: string
+          format: ipv4
+        external_port:
+          type: integer
+        subnet:
+          type: string
+        server_ip:
+          type: string
+        server_public_key:
+          type: string
+        clients_count:
+          type: integer
+          description: Total number of clients
+        connected_clients_count:
+          type: integer
+          description: Number of currently connected clients
+        version:
+          type: string
+          description: Application version
+        wireguard:
+          type: object
+          properties:
+            running:
+              type: boolean
+            error:
+              type: string
+              nullable: true
+        obfuscator:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            running:
+              type: boolean
+            error:
+              type: string
+              nullable: true
+            exit_code:
+              type: integer
+              nullable: true
+            version:
+              type: string
+              nullable: true
+              description: Obfuscator version
+
+    WireGuardStats:
+      type: object
+      properties:
+        interface:
+          type: string
+          description: WireGuard interface name
+        peers:
+          type: array
+          items:
+            $ref: '#/components/schemas/PeerStats'
+
+    PeerStats:
+      type: object
+      properties:
+        public_key:
+          type: string
+        client_name:
+          type: string
+          nullable: true
+        is_connected:
+          type: boolean
+        latest_handshake:
+          type: integer
+          nullable: true
+          description: Unix timestamp of last handshake
+        rx_bytes:
+          type: integer
+          description: Total received bytes
+        tx_bytes:
+          type: integer
+          description: Total sent bytes
+        rx_bytes_delta:
+          type: integer
+          description: Received bytes since last check
+        tx_bytes_delta:
+          type: integer
+          description: Sent bytes since last check
+        message:
+          type: string
+          nullable: true
+          description: Status message (e.g., "Client not currently connected")
+
+    TrafficStats:
+      type: object
+      properties:
+        username:
+          type: string
+        start_time:
+          type: integer
+          description: Start time (Unix timestamp)
+        end_time:
+          type: integer
+          description: End time (Unix timestamp)
+        data_points:
+          type: array
+          items:
+            type: object
+            properties:
+              timestamp:
+                type: integer
+              rx_bytes_delta:
+                type: integer
+              tx_bytes_delta:
+                type: integer
+          description: Traffic data points
+        aggregated:
+          type: object
+          properties:
+            total_rx_bytes:
+              type: integer
+            total_tx_bytes:
+              type: integer
+          description: Aggregated statistics
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized - missing or invalid authentication token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+

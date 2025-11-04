@@ -11,6 +11,7 @@ interface Status {
   server_public_key: string;
   clients_count: number;
   connected_clients_count: number;
+  version?: string;
   wireguard: { running: boolean; error?: string };
   obfuscator: { enabled: boolean; running: boolean; error?: string; version?: string };
 }
@@ -76,6 +77,12 @@ export default function Dashboard() {
                 : t('dashboard.disabled')}
             </span>
           </div>
+          {status?.version && (
+            <div className="status-item">
+              <span className="label">{t('dashboard.appVersion')}:</span>
+              <span className="value">{status.version}</span>
+            </div>
+          )}
           {status?.obfuscator.version && (
             <div className="status-item">
               <span className="label">{t('dashboard.obfuscatorVersion')}:</span>

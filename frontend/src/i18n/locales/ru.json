@@ -48,6 +48,7 @@
     "connectedClientsCount": "Подключено",
     "wireguardStatus": "WireGuard",
     "obfuscatorStatus": "Обфускатор",
+    "appVersion": "Версия приложения",
     "obfuscatorVersion": "Версия обфускатора",
     "running": "Запущен",
     "stopped": "Остановлен",
