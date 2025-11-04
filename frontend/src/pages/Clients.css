@@ -298,6 +298,18 @@
   align-items: center;
 }
 
+.config-actions .success-message,
+.config-actions .error-message {
+  padding: 0.4rem 1rem;
+  margin-bottom: 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  display: flex;
+  align-items: center;
+  height: auto;
+  min-height: auto;
+}
+
 .config-textarea {
   width: 100%;
   padding: 0.75rem;

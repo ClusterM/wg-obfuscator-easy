@@ -16,6 +16,8 @@
     "search": "Search",
     "refresh": "Refresh",
     "copy": "Copy",
+    "copied": "Copied to clipboard",
+    "copyFailed": "Failed to copy to clipboard",
     "showQR": "QR Code"
   },
   "auth": {
