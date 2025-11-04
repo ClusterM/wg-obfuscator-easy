@@ -133,12 +133,5 @@ def create_app(config_manager, client_manager, wg_manager, obfuscator_manager,
         
         return {'error': 'Not found'}, 404
     
-    # Redirect root to prefix if prefix is set
-    if web_prefix:
-        @app.route('/')
-        def redirect_to_prefix():
-            from flask import redirect
-            return redirect(web_prefix + '/')
-    
     return app
 
