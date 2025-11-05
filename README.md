@@ -24,15 +24,8 @@ This project integrates with [WireGuard Obfuscator](https://github.com/ClusterM/
 ### Automated Installation
 
 The easiest way to get started is using the automated installation script:
-
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/clustermeerkat/wg-obfuscator-easy/master/install.sh)
-```
-
-Or download and run locally:
-
-```bash
-sudo bash install.sh
+curl -Ls https://raw.githubusercontent.com/ClusterM/wg-obfuscator-easy/master/install.sh | bash
 ```
 
 The installation script will:
@@ -123,8 +116,8 @@ Docker images are available on Docker Hub: **`clustermeerkat/wg-obf-easy`**
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/clustermeerkat/wg-obf-easy.git
-   cd wg-obf-easy
+   git clone https://github.com/ClusterM/wg-obfuscator-easy.git
+   cd wg-obfuscator-easy
    ```
 
 2. **Build frontend:**
@@ -360,7 +353,7 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 ## Support
 
 For issues and questions:
-- GitHub Issues: [Create an issue](https://github.com/clustermeerkat/wg-obf-easy/issues)
+- GitHub Issues: [Create an issue](https://github.com/ClusterM/wg-obfuscator-easy/issues)
 - Email: cluster@cluster.wtf
 
 ## Donate

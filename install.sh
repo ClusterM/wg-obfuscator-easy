@@ -10,11 +10,24 @@
 # 4. Generate a domain using nip.io
 # 5. Generate random configuration (admin password, web prefix, ports)
 # 6. Install and run the Docker container
-# 7. Configure Caddy for HTTPS with automatic SSL certificates
-# 8. Display access information and credentials
+# 7. Ask user if they want HTTPS (interactive mode)
+# 8. Configure Caddy for HTTPS with automatic SSL certificates (if enabled)
+# 9. Display access information and credentials
 #
-# Usage: bash <(curl -Ls https://raw.githubusercontent.com/clustermeerkat/wg-obfuscator-easy/master/install.sh)
-#        or: sudo bash install.sh
+# Usage:
+#   curl -Ls https://raw.githubusercontent.com/ClusterM/wg-obfuscator-easy/master/install.sh -o install.sh
+#   bash install.sh
+#
+# Or download and run:
+#   wget https://raw.githubusercontent.com/ClusterM/wg-obfuscator-easy/master/install.sh
+#   bash install.sh
+#
+# The script requires interactive mode and will ask you:
+#   - Do you want to set up HTTPS? (y/n)
+#   - Email address (required for nip.io domains with ZeroSSL, optional for regular domains)
+#
+# IMPORTANT: This script must be run interactively (not through a pipe).
+#            It will guide you through all configuration steps.
 #
 
 set -e
@@ -171,21 +184,18 @@ check_port() {
 
 # Function to get external IP
 get_external_ip() {
-    print_info "Detecting external IP address..."
     local ip
     
     # Try multiple services
     for service in "ifconfig.me" "ipinfo.io/ip" "icanhazip.com" "api.ipify.org"; do
         ip=$(curl -s --max-time 5 "https://$service" 2>/dev/null || curl -s --max-time 5 "http://$service" 2>/dev/null)
         if [ -n "$ip" ] && [[ "$ip" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
-            print_info "External IP: $ip"
             echo "$ip"
             return 0
         fi
     done
     
-    print_error "Failed to detect external IP address"
-    exit 1
+    return 1
 }
 
 # Function to install Caddy
@@ -268,11 +278,20 @@ configure_caddy() {
     fi
     
     # Create Caddyfile
-    # Note: nip.io domains work with Let's Encrypt, but may take a moment to verify
-    cat > "$caddyfile" <<EOF
+    # DuckDNS uses Let's Encrypt
+    print_info "Configuring Caddy for DuckDNS domain with Let's Encrypt SSL certificate."
+    local acme_email="${ACME_EMAIL}"
+    
+    # Always use Let's Encrypt for DuckDNS
+    if [ -n "$acme_email" ] && echo "$acme_email" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; then
+        cat > "$caddyfile" <<EOF
+{
+    email $acme_email
+}
+
 $domain {
     # Reverse proxy to the application
-    reverse_proxy localhost:$http_port {
+    reverse_proxy 127.0.0.1:$http_port {
         # Preserve the original request path
         header_up Host {host}
         header_up X-Real-IP {remote}
@@ -293,9 +312,49 @@ $domain {
     }
 }
 EOF
+    else
+        cat > "$caddyfile" <<EOF
+$domain {
+    # Reverse proxy to the application
+    reverse_proxy 127.0.0.1:$http_port {
+        # Preserve the original request path
+        header_up Host {host}
+        header_up X-Real-IP {remote}
+        header_up X-Forwarded-For {remote}
+        header_up X-Forwarded-Proto {scheme}
+    }
+    
+    # Security headers
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        X-XSS-Protection "1; mode=block"
+    }
+    
+    # Logging
+    log {
+        output file /var/log/caddy/access.log
+    }
+}
+EOF
+    fi
 
-    # Create log directory if it doesn't exist
+    # Create log directory with proper permissions
     mkdir -p /var/log/caddy
+    if command_exists chown; then
+        # Try to set ownership to caddy user if it exists
+        if id caddy >/dev/null 2>&1; then
+            # Remove any existing log files that might have wrong ownership
+            rm -f /var/log/caddy/access.log 2>/dev/null || true
+            # Fix ownership of directory
+            chown -R caddy:caddy /var/log/caddy 2>/dev/null || true
+            # Create log file with correct ownership
+            touch /var/log/caddy/access.log
+            chown caddy:caddy /var/log/caddy/access.log 2>/dev/null || true
+            chmod 644 /var/log/caddy/access.log 2>/dev/null || true
+        fi
+        chmod 755 /var/log/caddy
+    fi
     
     # Test Caddyfile configuration
     if caddy validate --config "$caddyfile" 2>/dev/null; then
@@ -304,11 +363,18 @@ EOF
         print_warning "Caddyfile validation failed, but continuing..."
     fi
     
-    # Reload Caddy
+    # Reload or restart Caddy
     if command_exists systemctl; then
         if systemctl is-active --quiet caddy 2>/dev/null; then
             print_info "Reloading Caddy configuration..."
-            systemctl reload caddy 2>/dev/null || systemctl restart caddy
+            # Use timeout to prevent hanging on reload
+            # If reload fails or hangs, fall back to restart
+            if timeout 10 systemctl reload caddy 2>/dev/null; then
+                print_info "Caddy configuration reloaded"
+            else
+                print_warning "Caddy reload failed or timed out, restarting..."
+                systemctl restart caddy
+            fi
         else
             print_info "Starting Caddy service..."
             systemctl enable caddy 2>/dev/null || true
@@ -354,13 +420,41 @@ EOF
 
 # Main installation function
 main() {
+    # Check if we can read from stdin (interactive mode required)
+    if ! [ -t 0 ]; then
+        print_error "================================================"
+        print_error "This script requires interactive mode!"
+        print_error "================================================"
+        echo ""
+        print_error "You cannot run this script through a pipe (curl ... | bash)."
+        echo ""
+        print_info "Please download and run it directly:"
+        echo ""
+        print_info "  curl -Ls https://raw.githubusercontent.com/ClusterM/wg-obfuscator-easy/master/install.sh -o install.sh"
+        print_info "  bash install.sh"
+        echo ""
+        print_info "Or use wget:"
+        print_info "  wget https://raw.githubusercontent.com/ClusterM/wg-obfuscator-easy/master/install.sh"
+        print_info "  bash install.sh"
+        echo ""
+        exit 1
+    fi
+    
+    print_info "================================================"
     print_info "WireGuard Obfuscator Easy - Installation Script"
     print_info "================================================"
+    echo ""
+    print_info "This script will guide you through the installation process."
+    print_info "You will be asked a few questions to configure your setup."
+    echo ""
     
     # Check if running as root
     if [ "$EUID" -ne 0 ]; then
-        print_error "Please run this script as root"
-        print_info "You can use: sudo bash $0"
+        print_error "This script must be run as root"
+        echo ""
+        print_info "Please run with sudo:"
+        print_info "  sudo bash install.sh"
+        echo ""
         exit 1
     fi
     
@@ -386,11 +480,123 @@ main() {
     fi
     
     # Get external IP
+    print_info "Detecting external IP address..."
     EXTERNAL_IP=$(get_external_ip)
+    if [ -z "$EXTERNAL_IP" ]; then
+        print_error "Failed to detect external IP address"
+        exit 1
+    fi
+    print_info "External IP: $EXTERNAL_IP"
     
-    # Generate domain using nip.io
-    DOMAIN="${EXTERNAL_IP}.nip.io"
+    # DuckDNS Setup
+    echo ""
+    print_info "================================================"
+    print_info "DuckDNS Domain Setup"
+    print_info "================================================"
+    echo ""
+    print_info "We'll use DuckDNS to create a free domain name for your server."
+    print_info "Your server IP address is: $EXTERNAL_IP"
+    echo ""
+    print_info "Follow these steps to set up DuckDNS:"
+    echo ""
+    print_info "1. Open your web browser and go to: https://www.duckdns.org/"
+    echo ""
+    print_info "2. Click on 'Sign in with Google' or 'Sign in with GitHub'"
+    print_info "   (You can use any Google or GitHub account - it's free)"
+    echo ""
+    print_info "3. After signing in, you'll see a page where you can:"
+    print_info "   - Enter a subdomain name (e.g., 'myvpn' or 'server1')"
+    print_info "   - Enter your server IP address: $EXTERNAL_IP"
+    print_info "   - Click 'add domain' or 'update ip'"
+    echo ""
+    print_info "4. Wait a few seconds for DNS to update (usually takes 1-2 minutes)"
+    echo ""
+    print_warning "IMPORTANT: Make sure you enter the IP address correctly: $EXTERNAL_IP"
+    echo ""
+    read -p "Press Enter when you have created your DuckDNS domain..." -r
+    echo ""
+    
+    # Get DuckDNS subdomain
+    while true; do
+        print_info "Enter your DuckDNS subdomain name"
+        print_info "Example: If your domain is 'myvpn.duckdns.org', enter 'myvpn'"
+        echo ""
+        read -p "DuckDNS subdomain: " -r
+        local duckdns_subdomain="$REPLY"
+        if [ -z "$duckdns_subdomain" ]; then
+            print_error "Subdomain cannot be empty. Please enter your DuckDNS subdomain."
+            echo ""
+            continue
+        fi
+        # Basic validation - only alphanumeric and hyphens
+        if ! echo "$duckdns_subdomain" | grep -qE '^[a-zA-Z0-9-]+$'; then
+            print_error "Invalid subdomain. Use only letters, numbers, and hyphens."
+            echo ""
+            continue
+        fi
+        break
+    done
+    
+    DOMAIN="${duckdns_subdomain}.duckdns.org"
+    echo ""
+    print_info "Checking if domain $DOMAIN points to your IP address ($EXTERNAL_IP)..."
+    
+    # Wait a bit for DNS to propagate
+    sleep 5
+    
+    # Check DNS resolution
+    local max_dns_checks=12
+    local dns_check=0
+    local dns_resolved=false
+    
+    while [ $dns_check -lt $max_dns_checks ]; do
+        local resolved_ip=$(getent hosts "$DOMAIN" 2>/dev/null | awk '{print $1}' | head -1)
+        if [ -z "$resolved_ip" ]; then
+            # Try with nslookup or host command if available
+            if command_exists nslookup; then
+                resolved_ip=$(nslookup "$DOMAIN" 2>/dev/null | grep -A1 "Name:" | grep "Address:" | awk '{print $2}' | head -1)
+            elif command_exists host; then
+                resolved_ip=$(host "$DOMAIN" 2>/dev/null | grep "has address" | awk '{print $4}' | head -1)
+            fi
+        fi
+        
+        if [ "$resolved_ip" = "$EXTERNAL_IP" ]; then
+            dns_resolved=true
+            print_info "DNS is correctly configured! Domain $DOMAIN points to $EXTERNAL_IP"
+            break
+        fi
+        
+        if [ -n "$resolved_ip" ] && [ "$resolved_ip" != "$EXTERNAL_IP" ]; then
+            print_warning "Domain $DOMAIN points to $resolved_ip, but your server IP is $EXTERNAL_IP"
+            print_warning "Please update the IP address in your DuckDNS account."
+            echo ""
+            read -p "Press Enter after updating the IP address in DuckDNS..." -r
+            dns_check=0
+            sleep 5
+            continue
+        fi
+        
+        print_info "Waiting for DNS to propagate... (attempt $((dns_check + 1))/$max_dns_checks)"
+        sleep 10
+        dns_check=$((dns_check + 1))
+    done
+    
+    if [ "$dns_resolved" = false ]; then
+        print_warning "Could not verify DNS configuration automatically."
+        print_warning "Please make sure:"
+        print_warning "  1. You created the domain '$DOMAIN' on DuckDNS"
+        print_warning "  2. The IP address is set to: $EXTERNAL_IP"
+        print_warning "  3. You waited a few minutes for DNS to propagate"
+        echo ""
+        read -p "Continue anyway? (y/n) [y]: " -r
+        if [[ -n "$REPLY" ]] && [[ ! "$REPLY" =~ ^[Yy]$ ]]; then
+            print_error "Exiting. Please configure DuckDNS and run the script again."
+            exit 1
+        fi
+    fi
+    
     print_info "Using domain: $DOMAIN"
+    echo ""
     
     # Generate random values
     print_info "Generating random configuration values..."
@@ -524,19 +730,130 @@ main() {
         APP_VERSION=""
     fi
     
-    # Install and configure Caddy
-    print_info "Setting up HTTPS with Caddy..."
-    install_caddy
+    # Ask user if they want HTTPS (always interactive)
+    ENABLE_HTTPS=false
+    ACME_EMAIL=""
     
-    # Configure Caddy
-    if configure_caddy "$DOMAIN" "$HTTP_PORT" "$WEB_PREFIX"; then
-        HTTPS_ENABLED=true
-        # Wait a bit more for SSL certificate to be obtained
-        print_info "Waiting for SSL certificate to be obtained..."
-        sleep 10
+    # Interactive mode - ask user
+    echo ""
+    print_info "================================================"
+    print_info "HTTPS Configuration"
+    print_info "================================================"
+    echo ""
+    print_info "HTTPS provides encrypted, secure access to your web interface."
+    print_info "The script can automatically set up HTTPS using Caddy web server."
+    echo ""
+    print_info "Options:"
+    print_info "  - Enable HTTPS: Install Caddy and get automatic SSL certificates"
+    print_info "  - Disable HTTPS: Access the application via HTTP only (less secure)"
+    echo ""
+    while true; do
+        read -p "Do you want to enable HTTPS? (y/n) [y]: " -r
+        if [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Yy]$ ]]; then
+            ENABLE_HTTPS=true
+            print_info "HTTPS will be enabled."
+            break
+        elif [[ "$REPLY" =~ ^[Nn]$ ]]; then
+            ENABLE_HTTPS=false
+            print_info "HTTPS will be disabled. You can access the application via HTTP only."
+            echo ""
+            print_warning "Note: HTTP is not secure. Consider enabling HTTPS for production use."
+            break
+        else
+            print_error "Invalid input. Please enter 'y' for yes or 'n' for no."
+        fi
+    done
+    
+    if [ "$ENABLE_HTTPS" = true ]; then
+        # Ask for email (optional for Let's Encrypt notifications)
+        echo ""
+        print_info "SSL Certificate Setup"
+        print_info "Let's Encrypt will automatically provide SSL certificates for your domain."
+        echo ""
+        print_info "You can optionally provide an email address to receive notifications"
+        print_info "when your certificate is about to expire (certificates are renewed automatically)."
+        echo ""
+        print_info "This email is completely optional - SSL certificates will work without it."
+        echo ""
+        while true; do
+            read -p "Enter email address for notifications (or press Enter to skip): " -r
+            if [ -z "$REPLY" ]; then
+                # Empty email - that's fine
+                ACME_EMAIL=""
+                print_info "Continuing without email. SSL certificates will still work perfectly."
+                break
+            elif echo "$REPLY" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; then
+                # Valid email
+                ACME_EMAIL="$REPLY"
+                print_info "Email set: $ACME_EMAIL"
+                print_info "You'll receive notifications about certificate expiration (if any)."
+                break
+            else
+                echo ""
+                print_error "Invalid email format!"
+                print_error "Please enter a valid email address (e.g., user@example.com)"
+                print_error "or press Enter without typing anything to skip."
+                echo ""
+            fi
+        done
+        echo ""
+    fi
+    
+    # Install and configure Caddy if HTTPS is enabled
+    HTTPS_ENABLED=false
+    if [ "$ENABLE_HTTPS" = true ]; then
+        print_info "Setting up HTTPS with Caddy..."
+        install_caddy
+        
+        # Configure Caddy
+        if configure_caddy "$DOMAIN" "$HTTP_PORT" "$WEB_PREFIX"; then
+            HTTPS_ENABLED=true
+            # Check domain type
+            if echo "$DOMAIN" | grep -q "\.duckdns\.org$"; then
+                # DuckDNS - use Let's Encrypt
+                print_info "Using Let's Encrypt for DuckDNS domain (obtaining certificate, this may take a moment)..."
+                sleep 15
+            elif echo "$DOMAIN" | grep -q "\.nip\.io$"; then
+                if [ -n "$ACME_EMAIL" ] && echo "$ACME_EMAIL" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; then
+                    print_info "Using ZeroSSL for nip.io domain (obtaining certificate, this may take a moment)..."
+                    sleep 20
+                    
+                    # Check if certificate was obtained successfully
+                    if command_exists openssl; then
+                        # Wait a bit more and check certificate
+                        sleep 5
+                        local cert_check=$(echo | timeout 5 openssl s_client -connect "$DOMAIN:443" -servername "$DOMAIN" 2>/dev/null | grep -E "Verify return code|CN=")
+                        if echo "$cert_check" | grep -q "Verify return code: 0"; then
+                            print_info "Valid SSL certificate obtained successfully from ZeroSSL"
+                        else
+                            echo ""
+                            print_error "ZeroSSL certificate is not valid for nip.io domain."
+                            print_error "This is expected - ZeroSSL cannot verify nip.io domains."
+                            echo ""
+                            print_warning "The site will use the certificate, but browsers will show security warnings."
+                            print_warning "The certificate is not trusted by browsers."
+                            echo ""
+                            print_info "Recommendations:"
+                            print_info "  1. Accept the self-signed certificate warning in your browser"
+                            print_info "  2. Use HTTP instead of HTTPS (no encryption)"
+                            print_info "  3. Use a real domain name for valid SSL certificates"
+                            echo ""
+                        fi
+                    fi
+                else
+                    print_info "Using self-signed certificate for nip.io domain"
+                fi
+            else
+                # Wait a bit more for SSL certificate to be obtained from Let's Encrypt
+                print_info "Waiting for SSL certificate to be obtained from Let's Encrypt..."
+                sleep 10
+            fi
+        else
+            HTTPS_ENABLED=false
+            print_warning "HTTPS setup failed. You can configure it manually later."
+        fi
     else
-        HTTPS_ENABLED=false
-        print_warning "HTTPS setup failed. You can configure it manually later."
+        print_info "HTTPS is disabled. Access the application via HTTP only."
     fi
     
     # Print summary
@@ -552,8 +869,8 @@ main() {
     echo ""
     
     if [ "$HTTPS_ENABLED" = true ]; then
-        print_info "HTTPS URL: https://$DOMAIN$WEB_PREFIX"
-        print_warning "HTTP URL: http://$EXTERNAL_IP:$HTTP_PORT$WEB_PREFIX (not recommended)"
+        print_info "HTTPS URL: https://$DOMAIN$WEB_PREFIX (using Let's Encrypt certificate)"
+        print_warning "HTTP URL: http://$EXTERNAL_IP:$HTTP_PORT$WEB_PREFIX (not recommended - use HTTPS)"
     else
         print_info "HTTP URL: http://$EXTERNAL_IP:$HTTP_PORT$WEB_PREFIX"
         print_warning "HTTPS is not configured. Please set up Caddy manually."
@@ -585,7 +902,11 @@ Domain: $DOMAIN
 External IP: $EXTERNAL_IP
 
 Access URLs:
-$(if [ "$HTTPS_ENABLED" = true ]; then echo "  HTTPS: https://$DOMAIN$WEB_PREFIX"; else echo "  HTTP: http://$EXTERNAL_IP:$HTTP_PORT$WEB_PREFIX"; fi)
+$(if [ "$HTTPS_ENABLED" = true ]; then 
+    echo "  HTTPS: https://$DOMAIN$WEB_PREFIX (Let's Encrypt)"; 
+else 
+    echo "  HTTP: http://$EXTERNAL_IP:$HTTP_PORT$WEB_PREFIX"; 
+fi)
 
 Login Credentials:
   Username: admin
