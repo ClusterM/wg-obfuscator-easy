@@ -208,6 +208,7 @@ def main():
     # Monitor SSL certificate files for changes (runs in background thread)
     def monitor_ssl_certificates():
         """Monitor SSL certificate files for changes and automatically reload"""
+        nonlocal ssl_cert_mtime, ssl_key_mtime
         if not ssl_cert_file or not ssl_key_file:
             return
         
@@ -223,7 +224,6 @@ def main():
                         current_key_mtime != ssl_key_mtime):
                         logger.info("SSL certificate files have been modified, reloading...")
                         # Update mtimes to avoid repeated reloads
-                        nonlocal ssl_cert_mtime, ssl_key_mtime
                         ssl_cert_mtime = current_cert_mtime
                         ssl_key_mtime = current_key_mtime
                         # Send SIGHUP to current process to trigger reload

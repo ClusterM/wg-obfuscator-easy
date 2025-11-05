@@ -20,9 +20,9 @@ COPY static /app/static
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    tini iptables iproute2 procps wireguard python3 python3-pip && \
+    tini iptables iproute2 procps wireguard python3 python3-pip python3-packaging && \
     pip install --no-cache-dir -r requirements.txt && \
-    apt-get purge -y python3-pip && \
+    apt-get purge -y python3-pip python3-wheel && \
     apt-get autoremove -y && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
