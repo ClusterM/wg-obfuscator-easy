@@ -38,6 +38,7 @@ IMAGE_NAME="clustermeerkat/wg-obf-easy:latest"
 CONTAINER_NAME="wg-obf-easy"
 # Use root's home directory for config (since we run as root)
 CONFIG_DIR="/root/.wg-obf-easy"
+CONFIG_FILE="$CONFIG_DIR/install_config.json"
 
 # Function to print colored messages
 print_info() {
@@ -90,6 +91,21 @@ install_curl() {
         apk add --no-cache curl
     else
         print_error "Unable to detect OS for curl installation"
+        exit 1
+    fi
+}
+
+install_systemd() {
+    print_info "Installing systemd..."
+    if [ "$OS" = "debian" ] || [ "$OS" = "ubuntu" ]; then
+        apt-get update -qq
+        apt-get install -y systemd
+    elif [ "$OS" = "rhel" ] || [ "$OS" = "centos" ] || [ "$OS" = "fedora" ]; then
+        dnf install -y systemd
+    elif [ "$OS" = "alpine" ]; then
+        apk add --no-cache systemd
+    else
+        print_error "Unable to detect OS for systemd installation"
         exit 1
     fi
 }
@@ -254,75 +270,105 @@ get_app_version() {
 
 # Function to configure Caddy
 configure_caddy() {
-    local domain=$1
+    local domain_or_host=$1
     local http_port=$2
-    local web_prefix=$3
-    
-    print_info "Configuring Caddy for domain: $domain"
-    
-    # Create Caddyfile
+    local web_prefix=${3:-/}
+    local mode=${4:-https}
     local caddyfile="/etc/caddy/Caddyfile"
-    
+    local site_label
+    local acme_email="${ACME_EMAIL}"
+
+    if [ "$mode" = "https" ]; then
+        if [ -z "$domain_or_host" ]; then
+            print_error "Domain is required for HTTPS configuration"
+            return 1
+        fi
+        site_label="$domain_or_host"
+    else
+        if [ -z "$domain_or_host" ]; then
+            site_label=":80"
+        else
+            site_label="$domain_or_host"
+            if [[ "$site_label" != http://* && "$site_label" != https://* && "$site_label" != :* ]]; then
+                site_label="http://${site_label}"
+            fi
+        fi
+        print_info "Configuring Caddy HTTP reverse proxy for host: $site_label"
+    fi
+
+    print_info "Configuring Caddy for target port: $http_port (proxying to $web_prefix)"
+
     # Backup existing Caddyfile if it exists
     if [ -f "$caddyfile" ]; then
         print_warning "Backing up existing Caddyfile to ${caddyfile}.backup"
         cp "$caddyfile" "${caddyfile}.backup"
     fi
-    
-    # Create Caddyfile
-    print_info "Configuring Caddy domain with Let's Encrypt SSL certificate..."
-    local acme_email="${ACME_EMAIL}"
-    
-    # Always use Let's Encrypt for DuckDNS
-    if [ -n "$acme_email" ] && echo "$acme_email" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; then
-        cat > "$caddyfile" <<EOF
+
+    if [ "$mode" = "https" ]; then
+        print_info "Configuring Caddy domain with Let's Encrypt SSL certificate..."
+        if [ -n "$acme_email" ] && echo "$acme_email" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; then
+            cat > "$caddyfile" <<EOF
 {
     email $acme_email
 }
 
-$domain {
-    # Reverse proxy to the application
+$site_label {
     reverse_proxy 127.0.0.1:$http_port {
-        # Preserve the original request path
         header_up Host {host}
         header_up X-Real-IP {remote}
         header_up X-Forwarded-For {remote}
         header_up X-Forwarded-Proto {scheme}
     }
-    
-    # Security headers
+
     header {
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"
         X-XSS-Protection "1; mode=block"
     }
-    
-    # Logging
+
     log {
         output file /var/log/caddy/access.log
     }
 }
 EOF
-    else
-        cat > "$caddyfile" <<EOF
-$domain {
-    # Reverse proxy to the application
+        else
+            cat > "$caddyfile" <<EOF
+$site_label {
     reverse_proxy 127.0.0.1:$http_port {
-        # Preserve the original request path
         header_up Host {host}
         header_up X-Real-IP {remote}
         header_up X-Forwarded-For {remote}
         header_up X-Forwarded-Proto {scheme}
     }
-    
-    # Security headers
+
     header {
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"
         X-XSS-Protection "1; mode=block"
     }
-    
-    # Logging
+
+    log {
+        output file /var/log/caddy/access.log
+    }
+}
+EOF
+        fi
+    else
+        cat > "$caddyfile" <<EOF
+$site_label {
+    reverse_proxy 127.0.0.1:$http_port {
+        header_up Host {host}
+        header_up X-Real-IP {remote}
+        header_up X-Forwarded-For {remote}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        X-XSS-Protection "1; mode=block"
+    }
+
     log {
         output file /var/log/caddy/access.log
     }
@@ -348,7 +394,7 @@ EOF
     fi
     
     # Test Caddyfile configuration
-    if caddy validate --config "$caddyfile" 2>/dev/null; then
+    if caddy validate --config "$caddyfile" 1>/dev/null 2>/dev/null; then
         print_info "Caddyfile configuration is valid"
     else
         print_warning "Caddyfile validation failed, but continuing..."
@@ -377,8 +423,12 @@ EOF
         caddy run --config "$caddyfile" &
     fi
     
-    # Wait a bit for Caddy to start and obtain certificate
-    print_info "Waiting for Caddy to start and obtain SSL certificate (this may take up to 30 seconds)..."
+    # Wait a bit for Caddy to start and, if needed, obtain certificate
+    if [ "$mode" = "https" ]; then
+        print_info "Waiting for Caddy to start and obtain SSL certificate (this may take up to 30 seconds)..."
+    else
+        print_info "Waiting for Caddy to start (this may take up to 30 seconds)..."
+    fi
     sleep 5
     
     # Check if Caddy is running
@@ -459,14 +509,26 @@ main() {
     print_info "Detected OS: $OS"
 
     print_info "Installing required packages... (this may take a while)"
-    
-    # Install curl if needed
-    if ! command_exists curl; then
-        install_curl
+
+    if ! command_exists systemctl; then
+        # Install systemd if needed
+        install_systemd
+        if ! command_exists systemctl; then
+            print_error "systemctl is not installed. Please install it and try again."
+            exit 1
+        fi
     fi
     
+    if ! command_exists curl; then
+        # Install curl if needed
+        install_curl
+    fi
+
     # Install Docker
     install_docker
+
+    # Install Caddy
+    install_caddy
     
     # Verify Docker is running
     if ! docker info >/dev/null 2>&1; then
@@ -488,7 +550,7 @@ main() {
 
     # Stop existing container if it exists to free the ports
     if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
-        docker stop "$CONTAINER_NAME" 2>/dev/null || true
+        docker stop "$CONTAINER_NAME" 1>/dev/null || true
     fi
 
     if command_exists systemctl; then
@@ -498,11 +560,17 @@ main() {
         fi
     fi
 
-
-    # Generate random values
-    ADMIN_PASSWORD=$(generate_password)
-    WEB_PREFIX="/$(generate_prefix)/"
-    WIREGUARD_PORT=$(generate_port)
+    CONFIG_EXISTS=false
+    if [ -f "$CONFIG_FILE" ]; then
+        CONFIG_EXISTS=true
+        source "$CONFIG_FILE"
+        ADMIN_PASSWORD=""
+    else
+        # Generate random values
+        ADMIN_PASSWORD=$(generate_password)
+        WIREGUARD_PORT=$(generate_port)
+        WEB_PREFIX="/$(generate_prefix)/"
+    fi
     HTTP_PORT=$(generate_port)
     # Ensure HTTP port is not in use
     local max_port_attempts=10
@@ -525,12 +593,6 @@ main() {
         WIREGUARD_PORT=$(generate_port)
         port_attempt=$((port_attempt + 1))
     done
-
-    # print_info "Generated configuration:"
-    # print_info "  HTTP Port: $HTTP_PORT"
-    # print_info "  WireGuard Port: $WIREGUARD_PORT"
-    # print_info "  Web Prefix: $WEB_PREFIX"
-    # print_info "  Admin Password: $ADMIN_PASSWORD"
     
     # Create config directory
     mkdir -p "$CONFIG_DIR"
@@ -538,12 +600,12 @@ main() {
 
     # Remove existing container if it exists to free the ports
     if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
-        docker rm "$CONTAINER_NAME" 2>/dev/null || true
+        docker rm "$CONTAINER_NAME" 1>/dev/null || true
     fi
 
     # Pull Docker image
-    print_info "Pulling Docker image: $IMAGE_NAME"
-    docker pull "$IMAGE_NAME" || {
+    print_info "Pulling Docker image: $IMAGE_NAME..."
+    docker pull "$IMAGE_NAME" 1>/dev/null || {
         print_error "Failed to pull Docker image. Make sure the image exists and you have internet connection."
         exit 1
     }
@@ -565,7 +627,7 @@ main() {
         --sysctl net.ipv4.ip_forward=1 \
         --sysctl net.ipv4.conf.all.src_valid_mark=1 \
         --restart unless-stopped \
-        "$IMAGE_NAME" || {
+        "$IMAGE_NAME" 1>/dev/null || {
         print_error "Failed to start Docker container"
         exit 1
     }
@@ -596,21 +658,19 @@ main() {
     sleep 5
     
     # Check if application is responding
-    if command_exists curl; then
-        local max_health_checks=10
-        local health_check=0
-        while [ $health_check -lt $max_health_checks ]; do
-            if curl -s -f -o /dev/null "http://localhost:$HTTP_PORT$WEB_PREFIX" 2>/dev/null || \
-               curl -s -f -o /dev/null "http://127.0.0.1:$HTTP_PORT$WEB_PREFIX" 2>/dev/null; then
-                print_info "Application is responding"
-                break
-            fi
-            sleep 2
-            health_check=$((health_check + 1))
-        done
-        if [ $health_check -eq $max_health_checks ]; then
-            print_warning "Application may not be fully ready yet. It should be available shortly."
+    local max_health_checks=10
+    local health_check=0
+    while [ $health_check -lt $max_health_checks ]; do
+        if curl -s -f -o /dev/null "http://localhost:$HTTP_PORT$WEB_PREFIX" 2>/dev/null || \
+            curl -s -f -o /dev/null "http://127.0.0.1:$HTTP_PORT$WEB_PREFIX" 2>/dev/null; then
+            print_info "Application is responding"
+            break
         fi
+        sleep 2
+        health_check=$((health_check + 1))
+    done
+    if [ $health_check -eq $max_health_checks ]; then
+        print_warning "Application may not be fully ready yet. It should be available shortly."
     fi
     
     # Get application version from container
@@ -624,36 +684,24 @@ main() {
     fi    
 
     while true; do
-        read -p "Do you want to enable HTTPS? It requires a domain name, but you can use a free domain name. (y/n) [y]: " -r
-        if [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Yy]$ ]]; then
+        read -p "Do you want to enable HTTPS (recommended)? It requires a domain name, but you can use a free domain name. (y/[n]): " -r
+        if [[ "$REPLY" =~ ^[Yy]$ ]]; then
             ENABLE_HTTPS=true
             break
-        elif [[ "$REPLY" =~ ^[Nn]$ ]]; then
+        elif [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Nn]$ ]]; then
             ENABLE_HTTPS=false
             break
         fi
     done
 
-    DNS_RESOLVED=false
     if [ "$ENABLE_HTTPS" = true ]; then
+        # TODO: check reverse DNS for the domain, which should point to the server IP address
         while true; do
-            # Check that the 443 port is not in use
-            if check_port "443"; then
-                print_warning "Port 443 is already in use. Please free it and try again."
-                echo ""
-                read -p "Continue anyway? (y/n/q) [y]: " -r
-                if [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Yy]$ ]]; then
-                    break
-                elif [[ "$REPLY" =~ ^[Qq]$ ]]; then
-                    ENABLE_HTTPS=false
-                    break
-                fi
-            fi
-
-            # TODO: check reverse DNS for the domain, which should point to the server IP address
-
-            read -p "Do you need a guide how to obtain a free domain name from DuckDNS? (y/n) [y]: " -r
-            if [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Yy]$ ]]; then
+            read -p "Do you need a guide how to obtain a free domain name from DuckDNS? ([y]/n/q): " -r
+            if [[ "$REPLY" =~ ^[Qq]$ ]]; then
+                ENABLE_HTTPS=false
+                break
+            elif [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Yy]$ ]]; then
                 echo ""
                 print_info "We'll use DuckDNS to create a free domain name for your server."
                 print_info "Your server IP address is: $EXTERNAL_IP"
@@ -665,23 +713,21 @@ main() {
                 print_info "2. Click on 'Sign in with Google' or 'Sign in with GitHub'"
                 print_info "   (You can use any Google or GitHub account - it's free)"
                 echo ""
-                print_info "3. After signing in, you'll see a page where you can:"
-                print_info "   - Enter a subdomain name (e.g., 'myvpn' or 'server1')"
+                print_info "3. After signing in, you'll see a page where you must:"
+                print_info "   - Enter a new subdomain name (e.g., any name you want, but it must be unique and not already taken)"
                 print_info "   - Enter your server IP address: $EXTERNAL_IP"
                 print_info "   - Click 'add domain' or 'update ip'"
                 echo ""
-                print_info "4. Wait a few seconds for DNS to update (usually takes 1-2 minutes)"
-                echo ""
-                print_warning "IMPORTANT: Make sure you enter the IP address correctly: $EXTERNAL_IP"
-                echo ""
-                read -p "Press Enter when you have created your DuckDNS domain..." -r
-                echo ""    
                 # Get DuckDNS subdomain
                 while true; do
-                    print_info "Enter your DuckDNS subdomain name"
-                    print_info "Example: If your domain is 'myvpn.duckdns.org', enter 'myvpn'"
+                    print_info "After creating your DuckDNS domain, enter your DuckDNS subdomain name (or enter 'q' to cancel and continue without HTTPS)."
+                    print_info "Example: If your domain is 'myvpn.duckdns.org', enter 'myvpn'."
                     echo ""
                     read -p "DuckDNS subdomain: " -r
+                    if [[ "$REPLY" =~ ^[Qq]$ ]]; then
+                        ENABLE_HTTPS=false
+                        break
+                    fi
                     local duckdns_subdomain="$REPLY"
                     if [ -z "$duckdns_subdomain" ]; then
                         print_error "Subdomain cannot be empty. Please enter your DuckDNS subdomain."
@@ -699,22 +745,32 @@ main() {
                 done
                 break
             elif [[ "$REPLY" =~ ^[Nn]$ ]]; then
-                read -p "Enter your domain name: " -r
-                DOMAIN="$REPLY"
-                if [ -z "$DOMAIN" ]; then
-                    print_error "Domain cannot be empty. Please enter your domain name."
-                    echo ""
-                    continue
-                fi
-                if ! echo "$DOMAIN" | grep -qE '^[a-zA-Z0-9\.-]+\.[a-zA-Z]{2,}$'; then
-                    print_error "Invalid domain name."
-                    echo ""
-                    continue
-                fi
+                while true; do
+                    read -p "Enter your domain name (or enter 'q' to cancel and continue without HTTPS): " -r
+                    if [[ "$REPLY" =~ ^[Qq]$ ]]; then
+                        ENABLE_HTTPS=false
+                        break
+                    fi
+                    DOMAIN="$REPLY"
+                    if [ -z "$DOMAIN" ]; then
+                        print_error "Domain cannot be empty. Please enter your domain name."
+                        echo ""
+                        continue
+                    fi
+                    if ! echo "$DOMAIN" | grep -qE '^[a-zA-Z0-9\.-]+\.[a-zA-Z]{2,}$'; then
+                        print_error "Invalid domain name."
+                        echo ""
+                        continue
+                    fi
+                    break
+                done
                 break
             fi
         done
+    fi
 
+    DNS_RESOLVED=false
+    if [ "$ENABLE_HTTPS" = true ]; then
         echo ""
         print_info "Checking if domain $DOMAIN points to your IP address ($EXTERNAL_IP)..."
         
@@ -753,6 +809,7 @@ main() {
             print_warning "It's possible that your DNS is not propagated yet. Please wait some time and try again. Some DNS providers take up to 24 hours to propagate."
             echo ""
             print_info "Let's continue without HTTPS for now."
+            ENABLE_HTTPS=false
         else
             # Ask for email (optional for Let's Encrypt notifications)
             echo ""
@@ -790,15 +847,35 @@ main() {
     fi
     
     # Install and configure Caddy if HTTPS is enabled
-    HTTPS_ENABLED=false
-    if [[ "$ENABLE_HTTPS" = true ]] && [[ "$DNS_RESOLVED" = true ]]; then
+    HTTP_PORT_REAL=$HTTP_PORT
+    if [ "$ENABLE_HTTPS" = true ]; then
         print_info "Setting up HTTPS with Caddy..."
-        install_caddy
         
         # Configure Caddy
-        if ! configure_caddy "$DOMAIN" "$HTTP_PORT" "$WEB_PREFIX"; then
+        if ! configure_caddy "$DOMAIN" "$HTTP_PORT" "$WEB_PREFIX" "https"; then
             print_warning "HTTPS setup failed. Let's continue without HTTPS."
-            HTTPS_ENABLED=false
+            systemctl stop caddy
+            systemctl disable caddy
+            ENABLE_HTTPS=false
+        fi
+    fi
+    if [ "$ENABLE_HTTPS" = false ]; then
+        # check if the 80 port is in use
+        if ! check_port "80"; then
+            print_info "Setting up HTTP reverse proxy with Caddy on port 80..."
+            local http_proxy_host
+            http_proxy_host="$DOMAIN"
+            if [ -z "$http_proxy_host" ]; then
+                http_proxy_host=":80"
+            fi
+            if ! configure_caddy "$http_proxy_host" "$HTTP_PORT" "$WEB_PREFIX" "http"; then
+                print_warning "Failed to configure HTTP reverse proxy with Caddy. HTTP will remain available on port $HTTP_PORT."
+                systemctl stop caddy
+                systemctl disable caddy
+            else
+                print_info "Caddy HTTP reverse proxy configured successfully."
+                HTTP_PORT=80
+            fi
         fi
     fi
 
@@ -816,68 +893,48 @@ main() {
     print_info "  Container name: $CONTAINER_NAME"
     print_info "  WireGuard port: $WIREGUARD_PORT"
     print_info "  Web prefix: $WEB_PREFIX"
-    if [ "$HTTPS_ENABLED" = true ]; then
+    if [ "$ENABLE_HTTPS" = true ]; then
         print_info "  HTTPS enabled: true"
     else
         print_info "  HTTPS enabled: false"
     fi
     echo ""
 
-    if [ "$HTTPS_ENABLED" = true ]; then
-        print_info "HTTP URL: http://$EXTERNAL_IP:$WEB_PREFIX (not recommended - use HTTPS)"
+    if [ "$ENABLE_HTTPS" = true ]; then
+        print_info "HTTP URL: http://$DOMAIN$WEB_PREFIX (not recommended - use HTTPS)"
         print_info "HTTPS URL: https://$DOMAIN$WEB_PREFIX (using Let's Encrypt certificate)"
-        print_warning "It can some time for the certificate to be obtained. If HTTPS is not working, please wait a few minutes and try again."
     else
-        print_info "HTTP URL: http://$EXTERNAL_IP:$WEB_PREFIX"
-        print_warning "HTTPS is not configured. You can set it up manually later."
+        if [ "$HTTP_PORT" = 80 ]; then
+            print_info "HTTP URL: http://$EXTERNAL_IP$WEB_PREFIX"
+        else
+            print_info "HTTP URL: http://$EXTERNAL_IP:$HTTP_PORT$WEB_PREFIX"
+        fi
     fi
     echo ""
-    print_info "Login Credentials:"
-    print_info "  Username: admin"
-    print_info "  Password: $ADMIN_PASSWORD"
-    echo ""
 
-    print_warning "IMPORTANT: Save these credentials in a secure location!"
+    if [ "$CONFIG_EXISTS" = false ]; then
+        print_info "Login Credentials:"
+        print_info "  Username: admin"
+        print_info "  Password: $ADMIN_PASSWORD"
+    else
+        print_info "Login Credentials are the same as the ones you used to install the script."
+    fi
+    echo ""
+    
+    if [ "$ENABLE_HTTPS" = true ]; then
+        print_warning "It can some time for the certificate to be obtained. If HTTPS is not working, please wait a few minutes and try again."
+    fi
+    print_warning "Save these credentials in a secure location!"
+    if [ "$ENABLE_HTTPS" = false ]; then
+        print_warning "HTTPS is not enabled. You can enable it later by running the script again."
+    fi
     
     # Save configuration to file
-#     local config_file="$CONFIG_DIR/install_config.txt"
-#     cat > "$config_file" <<EOF
-# WireGuard Obfuscator Easy - Installation Configuration
-# =====================================================
-# Installation Date: $(date)
-# $(if [ -n "$APP_VERSION" ]; then echo "Installed Version: v$APP_VERSION"; fi)
-# Domain: $DOMAIN
-# External IP: $EXTERNAL_IP
-
-# Access URLs:
-# $(if [ "$HTTPS_ENABLED" = true ]; then 
-#     echo "  HTTPS: https://$DOMAIN$WEB_PREFIX (Let's Encrypt)"; 
-# else 
-#     echo "  HTTP: http://$EXTERNAL_IP:$HTTP_PORT$WEB_PREFIX"; 
-# fi)
-
-# Login Credentials:
-#   Username: admin
-#   Password: $ADMIN_PASSWORD
-
-# Configuration:
-#   Container name: $CONTAINER_NAME
-#   Config directory: $CONFIG_DIR
-#   WireGuard port: $WIREGUARD_PORT
-#   HTTP port: $HTTP_PORT
-#   Web prefix: $WEB_PREFIX
-# EOF
-#     chmod 600 "$config_file"
-#     print_info "Configuration saved to: $config_file"
-#     echo ""
-    
-#     print_info "Useful commands:"
-#     print_info "  View container logs: docker logs $CONTAINER_NAME"
-#     print_info "  Stop container: docker stop $CONTAINER_NAME"
-#     print_info "  Start container: docker start $CONTAINER_NAME"
-#     print_info "  Restart container: docker restart $CONTAINER_NAME"
-#     echo ""
-
+    cat > "$CONFIG_FILE" <<EOF
+HTTP_PORT="$HTTP_PORT_REAL"
+WEB_PREFIX="$WEB_PREFIX"
+WIREGUARD_PORT="$WIREGUARD_PORT"
+EOF
 }
 
 # Run main function
