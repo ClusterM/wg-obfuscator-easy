@@ -15,16 +15,7 @@
 # 9. Display access information and credentials
 #
 # Usage:
-#   curl -Ls https://raw.githubusercontent.com/ClusterM/wg-obfuscator-easy/master/install.sh -o install.sh
-#   bash install.sh
-#
-# Or download and run:
-#   wget https://raw.githubusercontent.com/ClusterM/wg-obfuscator-easy/master/install.sh
-#   bash install.sh
-#
-# The script requires interactive mode and will ask you:
-#   - Do you want to set up HTTPS? (y/n)
-#   - Email address (required for nip.io domains with ZeroSSL, optional for regular domains)
+#   wget https://raw.githubusercontent.com/ClusterM/wg-obfuscator-easy/master/install.sh -O install.sh && bash install.sh
 #
 # IMPORTANT: This script must be run interactively (not through a pipe).
 #            It will guide you through all configuration steps.
@@ -37,8 +28,9 @@ trap 'print_error "Installation failed at line $LINENO. Please check the error m
 
 # Colors for output
 RED='\033[0;31m'
-GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+GREEN='\033[0;32m'
+WHITE='\033[1;37m'
 NC='\033[0m' # No Color
 
 # Configuration
@@ -49,15 +41,15 @@ CONFIG_DIR="/root/.wg-obf-easy"
 
 # Function to print colored messages
 print_info() {
-    echo -e "${GREEN}[INFO]${NC} $1"
+    echo -e "${GREEN}[INFO]${NC} ${WHITE}$1${NC}"
 }
 
 print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
+    echo -e "${YELLOW}[WARNING]${NC} ${WHITE}$1${NC}"
 }
 
 print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    echo -e "${RED}[ERROR]${NC} ${WHITE}$1${NC}"
 }
 
 # Function to check if command exists
@@ -278,8 +270,7 @@ configure_caddy() {
     fi
     
     # Create Caddyfile
-    # DuckDNS uses Let's Encrypt
-    print_info "Configuring Caddy for DuckDNS domain with Let's Encrypt SSL certificate."
+    print_info "Configuring Caddy domain with Let's Encrypt SSL certificate..."
     local acme_email="${ACME_EMAIL}"
     
     # Always use Let's Encrypt for DuckDNS
@@ -450,17 +441,24 @@ main() {
     
     # Check if running as root
     if [ "$EUID" -ne 0 ]; then
-        print_error "This script must be run as root"
-        echo ""
-        print_info "Please run with sudo:"
-        print_info "  sudo bash install.sh"
-        echo ""
-        exit 1
+        if command_exists sudo; then
+            print_warning "This script must be run as root. Re-launching with sudo. You may be prompted for your password."
+            exec sudo bash "$0" "$@"
+        else
+            print_error "This script must be run as root"
+            echo ""
+            print_info "Please run as root (for example, with sudo if available):"
+            print_info "  sudo bash install.sh"
+            echo ""
+            exit 1
+        fi
     fi
     
     # Detect OS
     detect_os
     print_info "Detected OS: $OS"
+
+    print_info "Installing required packages... (this may take a while)"
     
     # Install curl if needed
     if ! command_exists curl; then
@@ -487,123 +485,25 @@ main() {
         exit 1
     fi
     print_info "External IP: $EXTERNAL_IP"
-    
-    # DuckDNS Setup
-    echo ""
-    print_info "================================================"
-    print_info "DuckDNS Domain Setup"
-    print_info "================================================"
-    echo ""
-    print_info "We'll use DuckDNS to create a free domain name for your server."
-    print_info "Your server IP address is: $EXTERNAL_IP"
-    echo ""
-    print_info "Follow these steps to set up DuckDNS:"
-    echo ""
-    print_info "1. Open your web browser and go to: https://www.duckdns.org/"
-    echo ""
-    print_info "2. Click on 'Sign in with Google' or 'Sign in with GitHub'"
-    print_info "   (You can use any Google or GitHub account - it's free)"
-    echo ""
-    print_info "3. After signing in, you'll see a page where you can:"
-    print_info "   - Enter a subdomain name (e.g., 'myvpn' or 'server1')"
-    print_info "   - Enter your server IP address: $EXTERNAL_IP"
-    print_info "   - Click 'add domain' or 'update ip'"
-    echo ""
-    print_info "4. Wait a few seconds for DNS to update (usually takes 1-2 minutes)"
-    echo ""
-    print_warning "IMPORTANT: Make sure you enter the IP address correctly: $EXTERNAL_IP"
-    echo ""
-    read -p "Press Enter when you have created your DuckDNS domain..." -r
-    echo ""
-    
-    # Get DuckDNS subdomain
-    while true; do
-        print_info "Enter your DuckDNS subdomain name"
-        print_info "Example: If your domain is 'myvpn.duckdns.org', enter 'myvpn'"
-        echo ""
-        read -p "DuckDNS subdomain: " -r
-        local duckdns_subdomain="$REPLY"
-        if [ -z "$duckdns_subdomain" ]; then
-            print_error "Subdomain cannot be empty. Please enter your DuckDNS subdomain."
-            echo ""
-            continue
-        fi
-        # Basic validation - only alphanumeric and hyphens
-        if ! echo "$duckdns_subdomain" | grep -qE '^[a-zA-Z0-9-]+$'; then
-            print_error "Invalid subdomain. Use only letters, numbers, and hyphens."
-            echo ""
-            continue
-        fi
-        break
-    done
-    
-    DOMAIN="${duckdns_subdomain}.duckdns.org"
-    echo ""
-    print_info "Checking if domain $DOMAIN points to your IP address ($EXTERNAL_IP)..."
-    
-    # Wait a bit for DNS to propagate
-    sleep 5
-    
-    # Check DNS resolution
-    local max_dns_checks=12
-    local dns_check=0
-    local dns_resolved=false
-    
-    while [ $dns_check -lt $max_dns_checks ]; do
-        local resolved_ip=$(getent hosts "$DOMAIN" 2>/dev/null | awk '{print $1}' | head -1)
-        if [ -z "$resolved_ip" ]; then
-            # Try with nslookup or host command if available
-            if command_exists nslookup; then
-                resolved_ip=$(nslookup "$DOMAIN" 2>/dev/null | grep -A1 "Name:" | grep "Address:" | awk '{print $2}' | head -1)
-            elif command_exists host; then
-                resolved_ip=$(host "$DOMAIN" 2>/dev/null | grep "has address" | awk '{print $4}' | head -1)
-            fi
-        fi
-        
-        if [ "$resolved_ip" = "$EXTERNAL_IP" ]; then
-            dns_resolved=true
-            print_info "DNS is correctly configured! Domain $DOMAIN points to $EXTERNAL_IP"
-            break
-        fi
-        
-        if [ -n "$resolved_ip" ] && [ "$resolved_ip" != "$EXTERNAL_IP" ]; then
-            print_warning "Domain $DOMAIN points to $resolved_ip, but your server IP is $EXTERNAL_IP"
-            print_warning "Please update the IP address in your DuckDNS account."
-            echo ""
-            read -p "Press Enter after updating the IP address in DuckDNS..." -r
-            dns_check=0
-            sleep 5
-            continue
-        fi
-        
-        print_info "Waiting for DNS to propagate... (attempt $((dns_check + 1))/$max_dns_checks)"
-        sleep 10
-        dns_check=$((dns_check + 1))
-    done
-    
-    if [ "$dns_resolved" = false ]; then
-        print_warning "Could not verify DNS configuration automatically."
-        print_warning "Please make sure:"
-        print_warning "  1. You created the domain '$DOMAIN' on DuckDNS"
-        print_warning "  2. The IP address is set to: $EXTERNAL_IP"
-        print_warning "  3. You waited a few minutes for DNS to propagate"
-        echo ""
-        read -p "Continue anyway? (y/n) [y]: " -r
-        if [[ -n "$REPLY" ]] && [[ ! "$REPLY" =~ ^[Yy]$ ]]; then
-            print_error "Exiting. Please configure DuckDNS and run the script again."
-            exit 1
+
+    # Stop existing container if it exists to free the ports
+    if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+        docker stop "$CONTAINER_NAME" 2>/dev/null || true
+    fi
+
+    if command_exists systemctl; then
+        # Stop Caddy if it is running to free the port
+        if systemctl is-active --quiet caddy 2>/dev/null; then
+            systemctl stop caddy
         fi
     fi
-    
-    print_info "Using domain: $DOMAIN"
-    echo ""
-    
+
+
     # Generate random values
-    print_info "Generating random configuration values..."
     ADMIN_PASSWORD=$(generate_password)
     WEB_PREFIX="/$(generate_prefix)/"
+    WIREGUARD_PORT=$(generate_port)
     HTTP_PORT=$(generate_port)
-    
     # Ensure HTTP port is not in use
     local max_port_attempts=10
     local port_attempt=0
@@ -612,13 +512,9 @@ main() {
             print_error "Failed to find available HTTP port after $max_port_attempts attempts"
             exit 1
         fi
-        print_warning "Port $HTTP_PORT is already in use, generating new port..."
         HTTP_PORT=$(generate_port)
         port_attempt=$((port_attempt + 1))
     done
-    
-    WIREGUARD_PORT=$(generate_port)
-    
     # Ensure WireGuard port is not in use
     port_attempt=0
     while check_port "$WIREGUARD_PORT"; do
@@ -626,37 +522,34 @@ main() {
             print_error "Failed to find available WireGuard port after $max_port_attempts attempts"
             exit 1
         fi
-        print_warning "Port $WIREGUARD_PORT is already in use, generating new port..."
         WIREGUARD_PORT=$(generate_port)
         port_attempt=$((port_attempt + 1))
     done
-    
-    print_info "Generated configuration:"
-    print_info "  HTTP Port: $HTTP_PORT"
-    print_info "  WireGuard Port: $WIREGUARD_PORT"
-    print_info "  Web Prefix: $WEB_PREFIX"
-    print_info "  Admin Password: $ADMIN_PASSWORD"
+
+    # print_info "Generated configuration:"
+    # print_info "  HTTP Port: $HTTP_PORT"
+    # print_info "  WireGuard Port: $WIREGUARD_PORT"
+    # print_info "  Web Prefix: $WEB_PREFIX"
+    # print_info "  Admin Password: $ADMIN_PASSWORD"
     
     # Create config directory
     mkdir -p "$CONFIG_DIR"
     print_info "Config directory: $CONFIG_DIR"
-    
-    # Stop and remove existing container if it exists
+
+    # Remove existing container if it exists to free the ports
     if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
-        print_warning "Stopping and removing existing container..."
-        docker stop "$CONTAINER_NAME" 2>/dev/null || true
         docker rm "$CONTAINER_NAME" 2>/dev/null || true
     fi
-    
+
     # Pull Docker image
     print_info "Pulling Docker image: $IMAGE_NAME"
     docker pull "$IMAGE_NAME" || {
         print_error "Failed to pull Docker image. Make sure the image exists and you have internet connection."
         exit 1
     }
-    
+
     # Run Docker container
-    print_info "Starting Docker container..."
+    print_info "Starting WireGuard Obfuscator Easy Docker container..."
     docker run -d \
         --name "$CONTAINER_NAME" \
         -v "$CONFIG_DIR:/config" \
@@ -728,134 +621,187 @@ main() {
     else
         print_warning "Could not determine application version"
         APP_VERSION=""
-    fi
-    
-    # Ask user if they want HTTPS (always interactive)
-    ENABLE_HTTPS=false
-    ACME_EMAIL=""
-    
-    # Interactive mode - ask user
-    echo ""
-    print_info "================================================"
-    print_info "HTTPS Configuration"
-    print_info "================================================"
-    echo ""
-    print_info "HTTPS provides encrypted, secure access to your web interface."
-    print_info "The script can automatically set up HTTPS using Caddy web server."
-    echo ""
-    print_info "Options:"
-    print_info "  - Enable HTTPS: Install Caddy and get automatic SSL certificates"
-    print_info "  - Disable HTTPS: Access the application via HTTP only (less secure)"
-    echo ""
+    fi    
+
     while true; do
-        read -p "Do you want to enable HTTPS? (y/n) [y]: " -r
+        read -p "Do you want to enable HTTPS? It requires a domain name, but you can use a free domain name. (y/n) [y]: " -r
         if [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Yy]$ ]]; then
             ENABLE_HTTPS=true
-            print_info "HTTPS will be enabled."
             break
         elif [[ "$REPLY" =~ ^[Nn]$ ]]; then
             ENABLE_HTTPS=false
-            print_info "HTTPS will be disabled. You can access the application via HTTP only."
-            echo ""
-            print_warning "Note: HTTP is not secure. Consider enabling HTTPS for production use."
             break
-        else
-            print_error "Invalid input. Please enter 'y' for yes or 'n' for no."
         fi
     done
-    
+
+    DNS_RESOLVED=false
     if [ "$ENABLE_HTTPS" = true ]; then
-        # Ask for email (optional for Let's Encrypt notifications)
-        echo ""
-        print_info "SSL Certificate Setup"
-        print_info "Let's Encrypt will automatically provide SSL certificates for your domain."
-        echo ""
-        print_info "You can optionally provide an email address to receive notifications"
-        print_info "when your certificate is about to expire (certificates are renewed automatically)."
-        echo ""
-        print_info "This email is completely optional - SSL certificates will work without it."
-        echo ""
         while true; do
-            read -p "Enter email address for notifications (or press Enter to skip): " -r
-            if [ -z "$REPLY" ]; then
-                # Empty email - that's fine
-                ACME_EMAIL=""
-                print_info "Continuing without email. SSL certificates will still work perfectly."
-                break
-            elif echo "$REPLY" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; then
-                # Valid email
-                ACME_EMAIL="$REPLY"
-                print_info "Email set: $ACME_EMAIL"
-                print_info "You'll receive notifications about certificate expiration (if any)."
-                break
-            else
+            # Check that the 443 port is not in use
+            if check_port "443"; then
+                print_warning "Port 443 is already in use. Please free it and try again."
                 echo ""
-                print_error "Invalid email format!"
-                print_error "Please enter a valid email address (e.g., user@example.com)"
-                print_error "or press Enter without typing anything to skip."
+                read -p "Continue anyway? (y/n/q) [y]: " -r
+                if [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Yy]$ ]]; then
+                    break
+                elif [[ "$REPLY" =~ ^[Qq]$ ]]; then
+                    ENABLE_HTTPS=false
+                    break
+                fi
+            fi
+
+            # TODO: check reverse DNS for the domain, which should point to the server IP address
+
+            read -p "Do you need a guide how to obtain a free domain name from DuckDNS? (y/n) [y]: " -r
+            if [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Yy]$ ]]; then
                 echo ""
+                print_info "We'll use DuckDNS to create a free domain name for your server."
+                print_info "Your server IP address is: $EXTERNAL_IP"
+                echo ""
+                print_info "Follow these steps to set up DuckDNS:"
+                echo ""
+                print_info "1. Open your web browser and go to: https://www.duckdns.org/"
+                echo ""
+                print_info "2. Click on 'Sign in with Google' or 'Sign in with GitHub'"
+                print_info "   (You can use any Google or GitHub account - it's free)"
+                echo ""
+                print_info "3. After signing in, you'll see a page where you can:"
+                print_info "   - Enter a subdomain name (e.g., 'myvpn' or 'server1')"
+                print_info "   - Enter your server IP address: $EXTERNAL_IP"
+                print_info "   - Click 'add domain' or 'update ip'"
+                echo ""
+                print_info "4. Wait a few seconds for DNS to update (usually takes 1-2 minutes)"
+                echo ""
+                print_warning "IMPORTANT: Make sure you enter the IP address correctly: $EXTERNAL_IP"
+                echo ""
+                read -p "Press Enter when you have created your DuckDNS domain..." -r
+                echo ""    
+                # Get DuckDNS subdomain
+                while true; do
+                    print_info "Enter your DuckDNS subdomain name"
+                    print_info "Example: If your domain is 'myvpn.duckdns.org', enter 'myvpn'"
+                    echo ""
+                    read -p "DuckDNS subdomain: " -r
+                    local duckdns_subdomain="$REPLY"
+                    if [ -z "$duckdns_subdomain" ]; then
+                        print_error "Subdomain cannot be empty. Please enter your DuckDNS subdomain."
+                        echo ""
+                        continue
+                    fi
+                    # Basic validation - only alphanumeric and hyphens
+                    if ! echo "$duckdns_subdomain" | grep -qE '^[a-zA-Z0-9-]+$'; then
+                        print_error "Invalid subdomain. Use only letters, numbers, and hyphens."
+                        echo ""
+                        continue
+                    fi
+                    DOMAIN="${duckdns_subdomain}.duckdns.org"
+                    break
+                done
+                break
+            elif [[ "$REPLY" =~ ^[Nn]$ ]]; then
+                read -p "Enter your domain name: " -r
+                DOMAIN="$REPLY"
+                if [ -z "$DOMAIN" ]; then
+                    print_error "Domain cannot be empty. Please enter your domain name."
+                    echo ""
+                    continue
+                fi
+                if ! echo "$DOMAIN" | grep -qE '^[a-zA-Z0-9\.-]+\.[a-zA-Z]{2,}$'; then
+                    print_error "Invalid domain name."
+                    echo ""
+                    continue
+                fi
+                break
             fi
         done
+
         echo ""
+        print_info "Checking if domain $DOMAIN points to your IP address ($EXTERNAL_IP)..."
+        
+        # Wait a bit for DNS to propagate
+        sleep 5
+        
+        # Check DNS resolution
+        local max_dns_checks=12
+        local dns_check=0
+        
+        while [ $dns_check -lt $max_dns_checks ]; do
+            local resolved_ip=$(getent hosts "$DOMAIN" 2>/dev/null | awk '{print $1}' | head -1)
+            if [ -z "$resolved_ip" ]; then
+                # Try with nslookup or host command if available
+                if command_exists nslookup; then
+                    resolved_ip=$(nslookup "$DOMAIN" 2>/dev/null | grep -A1 "Name:" | grep "Address:" | awk '{print $2}' | head -1)
+                elif command_exists host; then
+                    resolved_ip=$(host "$DOMAIN" 2>/dev/null | grep "has address" | awk '{print $4}' | head -1)
+                fi
+            fi
+            
+            if [ "$resolved_ip" = "$EXTERNAL_IP" ]; then
+                DNS_RESOLVED=true
+                print_info "DNS is correctly configured! Domain $DOMAIN points to $EXTERNAL_IP."
+                break
+            fi
+            
+            print_info "Waiting for DNS to propagate... (attempt $((dns_check + 1))/$max_dns_checks)"
+            sleep 10
+            dns_check=$((dns_check + 1))
+        done
+        
+        if [ "$DNS_RESOLVED" = false ]; then
+            print_warning "Could not verify DNS configuration automatically. Please check your DNS settings."
+            print_warning "If you are using DuckDNS, please make sure you have added your domain and your server IP address."
+            print_warning "It's possible that your DNS is not propagated yet. Please wait some time and try again. Some DNS providers take up to 24 hours to propagate."
+            echo ""
+            print_info "Let's continue without HTTPS for now."
+        else
+            # Ask for email (optional for Let's Encrypt notifications)
+            echo ""
+            print_info "SSL Certificate Setup"
+            print_info "Let's Encrypt will automatically provide SSL certificates for your domain."
+            echo ""
+            print_info "You can optionally provide an email address to receive notifications"
+            print_info "when your certificate is about to expire (certificates are renewed automatically)."
+            echo ""
+            print_info "This email is completely optional - SSL certificates will work without it."
+            echo ""
+            while true; do
+                read -p "Enter email address for notifications (or press Enter to skip): " -r
+                if [ -z "$REPLY" ]; then
+                    # Empty email - that's fine
+                    ACME_EMAIL=""
+                    print_info "Continuing without email. SSL certificates will still work perfectly."
+                    break
+                elif echo "$REPLY" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; then
+                    # Valid email
+                    ACME_EMAIL="$REPLY"
+                    print_info "Email set: $ACME_EMAIL"
+                    print_info "You'll receive notifications about certificate expiration (if any)."
+                    break
+                else
+                    echo ""
+                    print_error "Invalid email format!"
+                    print_error "Please enter a valid email address (e.g., user@example.com)"
+                    print_error "or press Enter without typing anything to skip."
+                    echo ""
+                fi
+            done
+            echo ""
+        fi
     fi
     
     # Install and configure Caddy if HTTPS is enabled
     HTTPS_ENABLED=false
-    if [ "$ENABLE_HTTPS" = true ]; then
+    if [[ "$ENABLE_HTTPS" = true ]] && [[ "$DNS_RESOLVED" = true ]]; then
         print_info "Setting up HTTPS with Caddy..."
         install_caddy
         
         # Configure Caddy
-        if configure_caddy "$DOMAIN" "$HTTP_PORT" "$WEB_PREFIX"; then
-            HTTPS_ENABLED=true
-            # Check domain type
-            if echo "$DOMAIN" | grep -q "\.duckdns\.org$"; then
-                # DuckDNS - use Let's Encrypt
-                print_info "Using Let's Encrypt for DuckDNS domain (obtaining certificate, this may take a moment)..."
-                sleep 15
-            elif echo "$DOMAIN" | grep -q "\.nip\.io$"; then
-                if [ -n "$ACME_EMAIL" ] && echo "$ACME_EMAIL" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; then
-                    print_info "Using ZeroSSL for nip.io domain (obtaining certificate, this may take a moment)..."
-                    sleep 20
-                    
-                    # Check if certificate was obtained successfully
-                    if command_exists openssl; then
-                        # Wait a bit more and check certificate
-                        sleep 5
-                        local cert_check=$(echo | timeout 5 openssl s_client -connect "$DOMAIN:443" -servername "$DOMAIN" 2>/dev/null | grep -E "Verify return code|CN=")
-                        if echo "$cert_check" | grep -q "Verify return code: 0"; then
-                            print_info "Valid SSL certificate obtained successfully from ZeroSSL"
-                        else
-                            echo ""
-                            print_error "ZeroSSL certificate is not valid for nip.io domain."
-                            print_error "This is expected - ZeroSSL cannot verify nip.io domains."
-                            echo ""
-                            print_warning "The site will use the certificate, but browsers will show security warnings."
-                            print_warning "The certificate is not trusted by browsers."
-                            echo ""
-                            print_info "Recommendations:"
-                            print_info "  1. Accept the self-signed certificate warning in your browser"
-                            print_info "  2. Use HTTP instead of HTTPS (no encryption)"
-                            print_info "  3. Use a real domain name for valid SSL certificates"
-                            echo ""
-                        fi
-                    fi
-                else
-                    print_info "Using self-signed certificate for nip.io domain"
-                fi
-            else
-                # Wait a bit more for SSL certificate to be obtained from Let's Encrypt
-                print_info "Waiting for SSL certificate to be obtained from Let's Encrypt..."
-                sleep 10
-            fi
-        else
+        if ! configure_caddy "$DOMAIN" "$HTTP_PORT" "$WEB_PREFIX"; then
+            print_warning "HTTPS setup failed. Let's continue without HTTPS."
             HTTPS_ENABLED=false
-            print_warning "HTTPS setup failed. You can configure it manually later."
         fi
-    else
-        print_info "HTTPS is disabled. Access the application via HTTP only."
     fi
-    
+
     # Print summary
     echo ""
     print_info "================================================"
@@ -865,70 +811,73 @@ main() {
     fi
     print_info "================================================"
     echo ""
-    print_info "Access Information:"
-    echo ""
-    
+       
+    print_info "Configuration:"
+    print_info "  Container name: $CONTAINER_NAME"
+    print_info "  WireGuard port: $WIREGUARD_PORT"
+    print_info "  Web prefix: $WEB_PREFIX"
     if [ "$HTTPS_ENABLED" = true ]; then
-        print_info "HTTPS URL: https://$DOMAIN$WEB_PREFIX (using Let's Encrypt certificate)"
-        print_warning "HTTP URL: http://$EXTERNAL_IP:$HTTP_PORT$WEB_PREFIX (not recommended - use HTTPS)"
+        print_info "  HTTPS enabled: true"
     else
-        print_info "HTTP URL: http://$EXTERNAL_IP:$HTTP_PORT$WEB_PREFIX"
-        print_warning "HTTPS is not configured. Please set up Caddy manually."
+        print_info "  HTTPS enabled: false"
     fi
-    
+    echo ""
+
+    if [ "$HTTPS_ENABLED" = true ]; then
+        print_info "HTTP URL: http://$EXTERNAL_IP:$WEB_PREFIX (not recommended - use HTTPS)"
+        print_info "HTTPS URL: https://$DOMAIN$WEB_PREFIX (using Let's Encrypt certificate)"
+        print_warning "It can some time for the certificate to be obtained. If HTTPS is not working, please wait a few minutes and try again."
+    else
+        print_info "HTTP URL: http://$EXTERNAL_IP:$WEB_PREFIX"
+        print_warning "HTTPS is not configured. You can set it up manually later."
+    fi
     echo ""
     print_info "Login Credentials:"
     print_info "  Username: admin"
     print_info "  Password: $ADMIN_PASSWORD"
     echo ""
-    
-    print_info "Configuration:"
-    print_info "  Container name: $CONTAINER_NAME"
-    print_info "  Config directory: $CONFIG_DIR"
-    print_info "  WireGuard port: $WIREGUARD_PORT"
-    print_info "  HTTP port: $HTTP_PORT"
-    echo ""
-    
+
     print_warning "IMPORTANT: Save these credentials in a secure location!"
     
     # Save configuration to file
-    local config_file="$CONFIG_DIR/install_config.txt"
-    cat > "$config_file" <<EOF
-WireGuard Obfuscator Easy - Installation Configuration
-=====================================================
-Installation Date: $(date)
-$(if [ -n "$APP_VERSION" ]; then echo "Installed Version: v$APP_VERSION"; fi)
-Domain: $DOMAIN
-External IP: $EXTERNAL_IP
+#     local config_file="$CONFIG_DIR/install_config.txt"
+#     cat > "$config_file" <<EOF
+# WireGuard Obfuscator Easy - Installation Configuration
+# =====================================================
+# Installation Date: $(date)
+# $(if [ -n "$APP_VERSION" ]; then echo "Installed Version: v$APP_VERSION"; fi)
+# Domain: $DOMAIN
+# External IP: $EXTERNAL_IP
 
-Access URLs:
-$(if [ "$HTTPS_ENABLED" = true ]; then 
-    echo "  HTTPS: https://$DOMAIN$WEB_PREFIX (Let's Encrypt)"; 
-else 
-    echo "  HTTP: http://$EXTERNAL_IP:$HTTP_PORT$WEB_PREFIX"; 
-fi)
+# Access URLs:
+# $(if [ "$HTTPS_ENABLED" = true ]; then 
+#     echo "  HTTPS: https://$DOMAIN$WEB_PREFIX (Let's Encrypt)"; 
+# else 
+#     echo "  HTTP: http://$EXTERNAL_IP:$HTTP_PORT$WEB_PREFIX"; 
+# fi)
 
-Login Credentials:
-  Username: admin
-  Password: $ADMIN_PASSWORD
+# Login Credentials:
+#   Username: admin
+#   Password: $ADMIN_PASSWORD
 
-Configuration:
-  Container name: $CONTAINER_NAME
-  Config directory: $CONFIG_DIR
-  WireGuard port: $WIREGUARD_PORT
-  HTTP port: $HTTP_PORT
-  Web prefix: $WEB_PREFIX
-EOF
-    chmod 600 "$config_file"
-    print_info "Configuration saved to: $config_file"
-    echo ""
+# Configuration:
+#   Container name: $CONTAINER_NAME
+#   Config directory: $CONFIG_DIR
+#   WireGuard port: $WIREGUARD_PORT
+#   HTTP port: $HTTP_PORT
+#   Web prefix: $WEB_PREFIX
+# EOF
+#     chmod 600 "$config_file"
+#     print_info "Configuration saved to: $config_file"
+#     echo ""
     
-    print_info "Useful commands:"
-    print_info "  View container logs: docker logs $CONTAINER_NAME"
-    print_info "  Stop container: docker stop $CONTAINER_NAME"
-    print_info "  Start container: docker start $CONTAINER_NAME"
-    print_info "  Restart container: docker restart $CONTAINER_NAME"
-    echo ""
+#     print_info "Useful commands:"
+#     print_info "  View container logs: docker logs $CONTAINER_NAME"
+#     print_info "  Stop container: docker stop $CONTAINER_NAME"
+#     print_info "  Start container: docker start $CONTAINER_NAME"
+#     print_info "  Restart container: docker restart $CONTAINER_NAME"
+#     echo ""
+
 }
 
 # Run main function
