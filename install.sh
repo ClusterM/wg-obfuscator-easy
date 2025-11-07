@@ -15,7 +15,7 @@
 # 9. Display access information and credentials
 #
 # Usage:
-#   wget https://raw.githubusercontent.com/ClusterM/wg-obfuscator-easy/master/install.sh -O install.sh && bash install.sh
+#   wget https://bit.ly/wg-obf -O install.sh && bash install.sh
 #
 # IMPORTANT: This script must be run interactively (not through a pipe).
 #            It will guide you through all configuration steps.
@@ -853,17 +853,27 @@ main() {
     fi
 
     CONFIG_EXISTS=false
+    KEEP_OLD_HOST_CONFIG=false
     if [ -f "$CONFIG_FILE" ]; then
         CONFIG_EXISTS=true
-        source "$CONFIG_FILE"
         ADMIN_PASSWORD=""
+        while true; do
+            read -p "Old configuration found. Do you want to keep old settings? (Y/n): " -r
+            if [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Yy]$ ]]; then
+                source "$CONFIG_FILE"
+                KEEP_OLD_HOST_CONFIG=true
+                break
+            elif [[ "$REPLY" =~ ^[Nn]$ ]]; then
+                break
+            fi
+        done
     else
         # Generate random values
+        HTTP_PORT=$(generate_port)
         ADMIN_PASSWORD=$(generate_password)
         WIREGUARD_PORT=$(generate_port)
         WEB_PREFIX="/$(generate_prefix)/"
     fi
-    HTTP_PORT=$(generate_port)
     # Ensure HTTP port is not in use
     local max_port_attempts=10
     local port_attempt=0
@@ -974,90 +984,93 @@ main() {
         APP_VERSION=""
     fi    
 
-    while true; do
-        read -p "Do you want to enable HTTPS (recommended)? It requires a domain name, but you can use a free domain name. (y/N): " -r
-        if [[ "$REPLY" =~ ^[Yy]$ ]]; then
-            ENABLE_HTTPS=true
-            break
-        elif [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Nn]$ ]]; then
-            ENABLE_HTTPS=false
-            break
-        fi
-    done
-
-    if [ "$ENABLE_HTTPS" = true ]; then
-        # TODO: check reverse DNS for the domain, which should point to the server IP address
+    if [ "$KEEP_OLD_HOST_CONFIG" = false ]; then
         while true; do
-            read -p "Do you need a guide how to obtain a free domain name from DuckDNS? (Y/n/q): " -r
-            if [[ "$REPLY" =~ ^[Qq]$ ]]; then
+            read -p "Do you want to enable HTTPS (recommended)? It requires a domain name, but you can use a free domain name. (y/N): " -r
+            if [[ "$REPLY" =~ ^[Yy]$ ]]; then
+                ENABLE_HTTPS=true
+                break
+            elif [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Nn]$ ]]; then
                 ENABLE_HTTPS=false
-                break
-            elif [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Yy]$ ]]; then
-                echo ""
-                print_info "We'll use DuckDNS to create a free domain name for your server."
-                print_info "Your server IP address is: $EXTERNAL_IP"
-                echo ""
-                print_info "Follow these steps to set up DuckDNS:"
-                echo ""
-                print_info "1. Open your web browser and go to: https://www.duckdns.org/"
-                echo ""
-                print_info "2. Click on 'Sign in with Google' or 'Sign in with GitHub'"
-                print_info "   (You can use any Google or GitHub account - it's free)"
-                echo ""
-                print_info "3. After signing in, you'll see a page where you must:"
-                print_info "   - Enter a new subdomain name (e.g., any name you want, but it must be unique and not already taken)"
-                print_info "   - Enter your server IP address: $EXTERNAL_IP"
-                print_info "   - Click 'add domain' or 'update ip'"
-                echo ""
-                # Get DuckDNS subdomain
-                while true; do
-                    print_info "After creating your DuckDNS domain, enter your DuckDNS subdomain name (or enter 'q' to cancel and continue without HTTPS)."
-                    print_info "Example: If your domain is 'myvpn.duckdns.org', enter 'myvpn'."
-                    echo ""
-                    read -p "DuckDNS subdomain: " -r
-                    if [[ "$REPLY" =~ ^[Qq]$ ]]; then
-                        ENABLE_HTTPS=false
-                        break
-                    fi
-                    local duckdns_subdomain="$REPLY"
-                    if [ -z "$duckdns_subdomain" ]; then
-                        print_error "Subdomain cannot be empty. Please enter your DuckDNS subdomain."
-                        echo ""
-                        continue
-                    fi
-                    # Basic validation - only alphanumeric and hyphens
-                    if ! echo "$duckdns_subdomain" | grep -qE '^[a-zA-Z0-9-]+$'; then
-                        print_error "Invalid subdomain. Use only letters, numbers, and hyphens."
-                        echo ""
-                        continue
-                    fi
-                    DOMAIN="${duckdns_subdomain}.duckdns.org"
-                    break
-                done
-                break
-            elif [[ "$REPLY" =~ ^[Nn]$ ]]; then
-                while true; do
-                    read -p "Enter your domain name (or enter 'q' to cancel and continue without HTTPS): " -r
-                    if [[ "$REPLY" =~ ^[Qq]$ ]]; then
-                        ENABLE_HTTPS=false
-                        break
-                    fi
-                    DOMAIN="$REPLY"
-                    if [ -z "$DOMAIN" ]; then
-                        print_error "Domain cannot be empty. Please enter your domain name."
-                        echo ""
-                        continue
-                    fi
-                    if ! echo "$DOMAIN" | grep -qE '^[a-zA-Z0-9\.-]+\.[a-zA-Z]{2,}$'; then
-                        print_error "Invalid domain name."
-                        echo ""
-                        continue
-                    fi
-                    break
-                done
                 break
             fi
         done
+
+        DOMAIN=""
+        if [ "$ENABLE_HTTPS" = true ]; then
+            # TODO: check reverse DNS for the domain, which should point to the server IP address
+            while true; do
+                read -p "Do you need a guide how to obtain a free domain name from DuckDNS? (Y/n/q): " -r
+                if [[ "$REPLY" =~ ^[Qq]$ ]]; then
+                    ENABLE_HTTPS=false
+                    break
+                elif [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Yy]$ ]]; then
+                    echo ""
+                    print_info "We'll use DuckDNS to create a free domain name for your server."
+                    print_info "Your server IP address is: $EXTERNAL_IP"
+                    echo ""
+                    print_info "Follow these steps to set up DuckDNS:"
+                    echo ""
+                    print_info "1. Open your web browser and go to: https://www.duckdns.org/"
+                    echo ""
+                    print_info "2. Click on 'Sign in with Google' or 'Sign in with GitHub'"
+                    print_info "   (You can use any Google or GitHub account - it's free)"
+                    echo ""
+                    print_info "3. After signing in, you'll see a page where you must:"
+                    print_info "   - Enter a new subdomain name (e.g., any name you want, but it must be unique and not already taken)"
+                    print_info "   - Enter your server IP address: $EXTERNAL_IP"
+                    print_info "   - Click 'add domain' or 'update ip'"
+                    echo ""
+                    # Get DuckDNS subdomain
+                    while true; do
+                        print_info "After creating your DuckDNS domain, enter your DuckDNS subdomain name (or enter 'q' to cancel and continue without HTTPS)."
+                        print_info "Example: If your domain is 'myvpn.duckdns.org', enter 'myvpn'."
+                        echo ""
+                        read -p "DuckDNS subdomain: " -r
+                        if [[ "$REPLY" =~ ^[Qq]$ ]]; then
+                            ENABLE_HTTPS=false
+                            break
+                        fi
+                        local duckdns_subdomain="$REPLY"
+                        if [ -z "$duckdns_subdomain" ]; then
+                            print_error "Subdomain cannot be empty. Please enter your DuckDNS subdomain."
+                            echo ""
+                            continue
+                        fi
+                        # Basic validation - only alphanumeric and hyphens
+                        if ! echo "$duckdns_subdomain" | grep -qE '^[a-zA-Z0-9-]+$'; then
+                            print_error "Invalid subdomain. Use only letters, numbers, and hyphens."
+                            echo ""
+                            continue
+                        fi
+                        DOMAIN="${duckdns_subdomain}.duckdns.org"
+                        break
+                    done
+                    break
+                elif [[ "$REPLY" =~ ^[Nn]$ ]]; then
+                    while true; do
+                        read -p "Enter your domain name (or enter 'q' to cancel and continue without HTTPS): " -r
+                        if [[ "$REPLY" =~ ^[Qq]$ ]]; then
+                            ENABLE_HTTPS=false
+                            break
+                        fi
+                        DOMAIN="$REPLY"
+                        if [ -z "$DOMAIN" ]; then
+                            print_error "Domain cannot be empty. Please enter your domain name."
+                            echo ""
+                            continue
+                        fi
+                        if ! echo "$DOMAIN" | grep -qE '^[a-zA-Z0-9\.-]+\.[a-zA-Z]{2,}$'; then
+                            print_error "Invalid domain name."
+                            echo ""
+                            continue
+                        fi
+                        break
+                    done
+                    break
+                fi
+            done
+        fi
     fi
 
     DNS_RESOLVED=false
@@ -1101,8 +1114,7 @@ main() {
             echo ""
             print_info "Let's continue without HTTPS for now."
             ENABLE_HTTPS=false
-        else
-            # Ask for email (optional for Let's Encrypt notifications)
+        elif [ "$KEEP_OLD_HOST_CONFIG" = false ]; then
             echo ""
             print_info "SSL Certificate Setup"
             print_info "Let's Encrypt will automatically provide SSL certificates for your domain."
@@ -1188,7 +1200,6 @@ main() {
     print_info "================================================"
     echo ""
 
-
     if [ "$FIREWALL_BACKEND" != "none" ]; then
         local opened_ports=""
         local skipped_ports=""
@@ -1248,7 +1259,7 @@ main() {
     echo ""
     
     if [ "$ENABLE_HTTPS" = true ]; then
-        print_warning "It can some time for the certificate to be obtained. If HTTPS is not working, please wait a few minutes and try again."
+        print_warning "It can some time for the certificate to be obtained. If you cannot access the web interface, please wait a few minutes and try again."
     fi
     print_warning "Save these credentials in a secure location!"
     if [ "$ENABLE_HTTPS" = false ]; then
@@ -1257,9 +1268,12 @@ main() {
     
     # Save configuration to file
     cat > "$CONFIG_FILE" <<EOF
+DOMAIN="$DOMAIN"
+ENABLE_HTTPS="$ENABLE_HTTPS"
 HTTP_PORT="$HTTP_PORT_REAL"
 WEB_PREFIX="$WEB_PREFIX"
 WIREGUARD_PORT="$WIREGUARD_PORT"
+ACME_EMAIL="$ACME_EMAIL"
 EOF
 }
 
