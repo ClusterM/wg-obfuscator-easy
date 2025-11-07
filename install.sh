@@ -44,6 +44,7 @@ FIREWALL_BACKEND_STATE="unknown"
 FIREWALL_RELOAD_REQUIRED=false
 declare -a FIREWALL_PORTS_OPENED=()
 declare -a FIREWALL_PORTS_SKIPPED=()
+IPTABLES_PERSISTENCE_CONFIGURED=false
 
 # Function to print colored messages
 print_info() {
@@ -262,6 +263,106 @@ record_firewall_result() {
     fi
 }
 
+ensure_iptables_persistence() {
+    if [ "$FIREWALL_BACKEND" != "iptables" ]; then
+        return
+    fi
+
+    local install_performed=false
+
+    if [ "$IPTABLES_PERSISTENCE_CONFIGURED" != "true" ]; then
+        case "$OS" in
+            debian|ubuntu)
+                print_info "Configuring iptables persistence using netfilter-persistent..."
+                export DEBIAN_FRONTEND=noninteractive
+                apt-get update -qq
+                apt-get install -y netfilter-persistent iptables-persistent
+                install_performed=true
+                ;;
+            rhel|centos|fedora)
+                print_info "Configuring iptables persistence using iptables-services..."
+                if command_exists dnf; then
+                    dnf install -y iptables-services
+                else
+                    yum install -y iptables-services
+                fi
+                systemctl enable iptables >/dev/null 2>&1 || true
+                systemctl start iptables >/dev/null 2>&1 || true
+                install_performed=true
+                ;;
+            alpine)
+                print_info "Configuring iptables persistence using iptables-openrc..."
+                apk add --no-cache iptables ip6tables iptables-openrc
+                rc-update add iptables default >/dev/null 2>&1 || true
+                rc-update add ip6tables default >/dev/null 2>&1 || true
+                install_performed=true
+                ;;
+            *)
+                print_warning "Automatic iptables persistence is not supported for OS: $OS. Please configure rule saving manually."
+                IPTABLES_PERSISTENCE_CONFIGURED=true
+                return
+                ;;
+        esac
+        IPTABLES_PERSISTENCE_CONFIGURED=true
+    fi
+
+    local save_success=false
+
+    case "$OS" in
+        debian|ubuntu)
+            if command_exists netfilter-persistent; then
+                netfilter-persistent save >/dev/null 2>&1 && save_success=true
+            fi
+            if [ "$save_success" = false ]; then
+                mkdir -p /etc/iptables
+                if iptables-save > /etc/iptables/rules.v4 2>/dev/null; then
+                    save_success=true
+                fi
+                if command_exists ip6tables-save; then
+                    ip6tables-save > /etc/iptables/rules.v6 2>/dev/null || true
+                fi
+            fi
+            ;;
+        rhel|centos|fedora)
+            mkdir -p /etc/sysconfig
+            if iptables-save > /etc/sysconfig/iptables 2>/dev/null; then
+                save_success=true
+            fi
+            if command_exists ip6tables-save; then
+                ip6tables-save > /etc/sysconfig/ip6tables 2>/dev/null || true
+            fi
+            ;;
+        alpine)
+            if command_exists rc-service; then
+                rc-service iptables save >/dev/null 2>&1 && save_success=true
+                rc-service ip6tables save >/dev/null 2>&1 || true
+            fi
+            if [ "$save_success" = false ]; then
+                mkdir -p /etc/iptables
+                if iptables-save > /etc/iptables/rules-save 2>/dev/null; then
+                    save_success=true
+                fi
+                if command_exists ip6tables-save; then
+                    ip6tables-save > /etc/iptables/rules6-save 2>/dev/null || true
+                fi
+            fi
+            ;;
+        *)
+            return
+            ;;
+    esac
+
+    if [ "$save_success" = true ]; then
+        if [ "$install_performed" = true ]; then
+            print_info "iptables persistence configured and current rules saved."
+        else
+            print_info "iptables rules saved for persistence."
+        fi
+    else
+        print_warning "Failed to confirm iptables rule persistence. Please verify manually."
+    fi
+}
+
 open_firewall_port() {
     local port=$1
     local protocol=${2:-tcp}
@@ -349,6 +450,8 @@ open_firewall_port() {
                     ip6tables -I INPUT -p "$protocol" --dport "$port" -j ACCEPT >/dev/null 2>&1 || true
                 fi
             fi
+
+            ensure_iptables_persistence
             ;;
         *)
             record_firewall_result "$spec" "skipped" FIREWALL_PORTS_SKIPPED
