@@ -297,3 +297,32 @@
   gap: 0.5rem;
 }
 
+/* Grafana Token Instructions */
+.grafana-instructions {
+  margin-top: 1.5rem;
+  padding: 1.5rem;
+  background-color: #f8f9fa;
+  border-radius: 6px;
+  border-left: 4px solid #3498db;
+}
+
+.grafana-instructions h3 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: #2c3e50;
+  font-size: 1.1rem;
+}
+
+.instructions-content {
+  background: white;
+  padding: 1rem;
+  border-radius: 4px;
+  border: 1px solid #e0e0e0;
+}
+
+.instructions-content pre {
+  margin: 0;
+  color: #555;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}

@@ -198,6 +198,23 @@ def set_config_value(key: str, value: Any) -> None:
         """, (key, value_str, now))
 
 
+def get_grafana_token() -> Optional[str]:
+    """Get Grafana token from database"""
+    return get_config_value("grafana_token")
+
+
+def set_grafana_token(token: str) -> None:
+    """Set Grafana token in database"""
+    set_config_value("grafana_token", token)
+
+
+def delete_grafana_token() -> None:
+    """Delete Grafana token from database"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM config WHERE key = ?", ("grafana_token",))
+
+
 def get_all_config() -> Dict[str, Any]:
     """Get all configuration as dictionary"""
     with get_db() as conn:

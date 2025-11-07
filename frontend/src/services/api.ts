@@ -136,6 +136,17 @@ class ApiService {
     return response.data;
   }
 
+  // Grafana endpoints
+  async getGrafanaToken() {
+    const response = await this.client.get('/grafana/token');
+    return response.data;
+  }
+
+  async deleteGrafanaToken() {
+    const response = await this.client.delete('/grafana/token');
+    return response.data;
+  }
+
   // Auth endpoints
   async getCredentials() {
     const response = await this.client.get('/auth/credentials');

@@ -1171,6 +1171,59 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /api/grafana/token:
+    get:
+      tags:
+        - Statistics
+      summary: Generate Grafana token
+      description: |
+        Generate a new Grafana token for API access.
+        Only one token can exist at a time. When generating a new token, the old one is automatically replaced.
+        This token can be used for authentication with Grafana endpoints instead of JWT token.
+        Each call to this endpoint generates a new token.
+      operationId: getGrafanaToken
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Grafana token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: Grafana authentication token
+                    example: "a1b2c3d4e5f6..."
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags:
+        - Statistics
+      summary: Delete Grafana token
+      description: Delete the Grafana authentication token
+      operationId: deleteGrafanaToken
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Token deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Grafana token deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1178,7 +1231,8 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: |
-        Bearer token authentication. Token is obtained from the /api/auth/login endpoint.
+        Bearer token authentication. For most endpoints, use JWT token obtained from the /api/auth/login endpoint.
+        For Grafana endpoints (/api/grafana/*), you can use either JWT token or Grafana token (obtained from /api/grafana/token).
         Include the token in the Authorization header as: "Bearer <token>"
 
   parameters:

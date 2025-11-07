@@ -1451,7 +1451,6 @@ main() {
 
     DNS_RESOLVED=false
     if [ "$ENABLE_HTTPS" = true ]; then
-        echo ""
         print_info "$(msg CHECKING_DNS "$DOMAIN" "$EXTERNAL_IP")"
         
         # Wait a bit for DNS to propagate
@@ -1487,19 +1486,14 @@ main() {
             print_warning "$(msg DNS_VERIFY_FAILED)"
             print_warning "$(msg DNS_DUCKDNS_NOTE)"
             print_warning "$(msg DNS_PROPAGATION_NOTE)"
-            echo ""
             print_info "$(msg CONTINUE_WITHOUT_HTTPS)"
             ENABLE_HTTPS=false
         elif [ "$KEEP_OLD_HOST_CONFIG" = false ]; then
-            echo ""
             print_info "$(msg SSL_SETUP)"
             print_info "$(msg SSL_LETSENCRYPT)"
-            echo ""
             print_info "$(msg SSL_EMAIL_INFO)"
             print_info "$(msg SSL_EMAIL_INFO2)"
-            echo ""
             print_info "$(msg SSL_EMAIL_OPTIONAL)"
-            echo ""
             while true; do
                 read -p "$(msg EMAIL_PROMPT)" -r
                 if [ -z "$REPLY" ]; then
@@ -1514,14 +1508,11 @@ main() {
                     print_info "$(msg EMAIL_NOTIFICATIONS)"
                     break
                 else
-                    echo ""
                     print_error "$(msg EMAIL_INVALID)"
                     print_error "$(msg EMAIL_INVALID_FORMAT)"
                     print_error "$(msg EMAIL_SKIP_NOTE)"
-                    echo ""
                 fi
             done
-            echo ""
         fi
     fi
 
@@ -1599,8 +1590,8 @@ main() {
         if [ "$FIREWALL_BACKEND" = "firewalld" ] && [ "$FIREWALL_BACKEND_STATE" != "active" ]; then
             print_warning "$(msg FIREWALLD_NOT_APPLIED)"
         fi
+        echo ""
     fi
-    echo ""
 
     print_info "$(msg CONFIGURATION)"
     print_info "$(msg CONTAINER_NAME "$CONTAINER_NAME")"

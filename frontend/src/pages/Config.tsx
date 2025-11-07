@@ -40,6 +40,11 @@ export default function Config() {
   const [showRestartModal, setShowRestartModal] = useState(false);
   const [restartStatus, setRestartStatus] = useState<'waiting' | 'checking' | 'success' | 'error'>('waiting');
 
+  // Grafana token state
+  const [grafanaToken, setGrafanaToken] = useState<string | null>(null);
+  const [generatingGrafanaToken, setGeneratingGrafanaToken] = useState(false);
+  const [showGrafanaInstructions, setShowGrafanaInstructions] = useState(false);
+
   const loadConfig = async () => {
     try {
       setLoading(true);
@@ -226,6 +231,51 @@ export default function Config() {
     }
   };
 
+  const handleGenerateGrafanaToken = async () => {
+    try {
+      setGeneratingGrafanaToken(true);
+      setError('');
+      setSuccess('');
+      const data = await api.getGrafanaToken();
+      setGrafanaToken(data.token);
+      setShowGrafanaInstructions(true);
+      setSuccess(t('config.grafanaTokenGenerated'));
+    } catch (err: any) {
+      setError(err.message || t('errors.serverError'));
+    } finally {
+      setGeneratingGrafanaToken(false);
+    }
+  };
+
+  const handleDeleteGrafanaToken = async () => {
+    if (!confirm(t('config.confirmDeleteGrafanaToken'))) {
+      return;
+    }
+
+    try {
+      setError('');
+      setSuccess('');
+      await api.deleteGrafanaToken();
+      setGrafanaToken(null);
+      setShowGrafanaInstructions(false);
+      setSuccess(t('config.grafanaTokenDeleted'));
+    } catch (err: any) {
+      setError(err.message || t('errors.serverError'));
+    }
+  };
+
+  const handleCopyGrafanaToken = async () => {
+    if (!grafanaToken) return;
+    
+    try {
+      await navigator.clipboard.writeText(grafanaToken);
+      setSuccess(t('config.tokenCopied'));
+      setTimeout(() => setSuccess(''), 2000);
+    } catch (err) {
+      setError(t('common.copyFailed'));
+    }
+  };
+
   const handleChangeTimezone = async () => {
     if (!selectedTimezone || selectedTimezone === currentTimezone) {
       return;
@@ -383,6 +433,75 @@ export default function Config() {
             {t('config.regenerateServerKeys')}
           </button>
         </div>
+      </div>
+
+      <div className="config-section">
+        <h2>{t('config.grafanaToken')}</h2>
+        <div className="field-description">{t('config.grafanaTokenDescription')}</div>
+        
+        {grafanaToken ? (
+          <>
+            <div className="form-group">
+              <label>{t('config.grafanaToken')}</label>
+              <div className="input-with-button">
+                <input
+                  type="text"
+                  value={grafanaToken}
+                  readOnly
+                  className="mono"
+                  style={{ fontFamily: 'monospace', fontSize: '0.9rem' }}
+                />
+                <button
+                  type="button"
+                  onClick={handleCopyGrafanaToken}
+                  className="btn-secondary"
+                  title={t('config.copyToken')}
+                >
+                  {t('config.copyToken')}
+                </button>
+              </div>
+            </div>
+
+            {showGrafanaInstructions && (
+              <div className="grafana-instructions">
+                <h3>{t('config.grafanaTokenInstructions')}</h3>
+                <div className="instructions-content">
+                  <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: '0.9rem', lineHeight: '1.6' }}>
+                    {t('config.grafanaTokenInstructionsText', {
+                      url: `${window.location.origin}${(window as any).__WEB_PREFIX__ || ''}/api/grafana`
+                    })}
+                  </pre>
+                </div>
+              </div>
+            )}
+
+            <div className="form-actions">
+              <button
+                onClick={handleGenerateGrafanaToken}
+                disabled={generatingGrafanaToken}
+                className="btn-primary"
+              >
+                {generatingGrafanaToken ? t('common.loading') : t('config.generateGrafanaToken')}
+              </button>
+              <button
+                onClick={handleDeleteGrafanaToken}
+                className="btn-warning"
+              >
+                {t('config.deleteGrafanaToken')}
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="form-actions">
+            <button
+              onClick={handleGenerateGrafanaToken}
+              disabled={generatingGrafanaToken}
+              className="btn-primary"
+            >
+              {generatingGrafanaToken ? t('common.loading') : t('config.generateGrafanaToken')}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="config-section">

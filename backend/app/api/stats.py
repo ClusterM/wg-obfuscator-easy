@@ -52,6 +52,37 @@ def require_auth(f):
     return decorated_function
 
 
+def require_auth_or_grafana(f):
+    """Decorator to require authentication (JWT token or Grafana token)"""
+    from functools import wraps
+    from ..config.constants import AUTH_ENABLED
+    from ..database import get_grafana_token
+    
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not AUTH_ENABLED:
+            return f(*args, **kwargs)
+        
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({"error": "Missing or invalid authorization header"}), 401
+        
+        token = auth_header.split(' ')[1]
+        
+        # Check Grafana token first
+        grafana_token = get_grafana_token()
+        if grafana_token and token == grafana_token:
+            return f(*args, **kwargs)
+        
+        # Check JWT token
+        token_manager = current_app.token_manager
+        if token_manager and token_manager.is_valid(token):
+            return f(*args, **kwargs)
+        
+        return jsonify({"error": "Invalid or expired token"}), 401
+    return decorated_function
+
+
 @bp.route('/status', methods=['GET'])
 @require_auth
 def get_status():
@@ -386,7 +417,7 @@ def clear_client_all_time_stats(username):
 
 
 @bp.route('/grafana/clients/<username>/traffic', methods=['GET'])
-@require_auth
+@require_auth_or_grafana
 def get_grafana_traffic_data(username):
     """
     Get traffic statistics for Grafana JSON API data source.
@@ -468,7 +499,7 @@ def get_grafana_traffic_data(username):
 
 
 @bp.route('/grafana/clients/<username>/traffic-bytes', methods=['GET'])
-@require_auth
+@require_auth_or_grafana
 def get_grafana_traffic_bytes(username):
     """
     Get total traffic (bytes) for Grafana JSON API data source.
@@ -529,7 +560,7 @@ def get_grafana_traffic_bytes(username):
 
 
 @bp.route('/grafana/clients', methods=['GET'])
-@require_auth
+@require_auth_or_grafana
 def get_grafana_clients_list():
     """
     Get list of all clients for Grafana query builder.
@@ -550,7 +581,7 @@ def get_grafana_clients_list():
 
 
 @bp.route('/grafana/status', methods=['GET'])
-@require_auth
+@require_auth_or_grafana
 def get_grafana_status():
     """
     Get server status metrics for Grafana.
@@ -608,5 +639,50 @@ def get_grafana_status():
         ])
     except Exception as e:
         logger.error(f"Error getting Grafana status: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@bp.route('/grafana/token', methods=['GET'])
+@require_auth
+def get_grafana_token_endpoint():
+    """
+    Generate new Grafana token for API access.
+    Only one token can exist at a time. When generating a new token, the old one is automatically replaced.
+    """
+    try:
+        import secrets
+        from ..database import set_grafana_token
+        
+        # Always generate a new token (old one is automatically replaced by set_grafana_token)
+        # Generate random token (32 bytes = 64 hex characters)
+        token = secrets.token_hex(32)
+        set_grafana_token(token)
+        logger.info("Generated new Grafana token (old token was replaced)")
+        
+        return jsonify({
+            "token": token
+        })
+    except Exception as e:
+        logger.error(f"Error generating Grafana token: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@bp.route('/grafana/token', methods=['DELETE'])
+@require_auth
+def delete_grafana_token_endpoint():
+    """
+    Delete Grafana token.
+    """
+    try:
+        from ..database import delete_grafana_token
+        
+        delete_grafana_token()
+        logger.info("Deleted Grafana token")
+        
+        return jsonify({
+            "message": "Grafana token deleted successfully"
+        })
+    except Exception as e:
+        logger.error(f"Error deleting Grafana token: {e}")
         return jsonify({"error": str(e)}), 500
 
