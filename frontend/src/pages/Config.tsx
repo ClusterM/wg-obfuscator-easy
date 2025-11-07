@@ -106,15 +106,17 @@ export default function Config() {
         // Reload timezone data
         await loadTimezone();
 
-        // Close modal after 3 seconds
+        // Close modal after 3 seconds and reset changing state
         setTimeout(() => {
           setShowRestartModal(false);
           setRestartStatus('waiting');
+          setChangingTimezone(false);
         }, 3000);
       } else if (attempts >= maxAttempts) {
         // Timeout - system didn't come back
         clearInterval(checkInterval);
         setRestartStatus('error');
+        setChangingTimezone(false);
       }
     }, 2000); // Check every 2 seconds
   };
