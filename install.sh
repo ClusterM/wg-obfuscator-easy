@@ -23,15 +23,367 @@
 
 set -e
 
-# Trap to handle errors (only for critical failures)
-trap 'print_error "Installation failed at line $LINENO. Please check the error messages above."' ERR INT TERM
-
 # Colors for output
-RED='\033[0;31m'T
+RED='\033[0;31m'
 YELLOW='\033[1;33m'
 GREEN='\033[0;32m'
 WHITE='\033[1;37m'
 NC='\033[0m' # No Color
+
+# Default language
+LANG_CHOICE="en"
+
+# Language strings - English
+declare -A MSG_EN=(
+    [SELECT_LANG_TITLE]="Language selection / Выбор языка"
+    [SELECT_LANG]="Select language / Выберите язык"
+    [LANG_EN]="English"
+    [LANG_RU]="Русский"
+    [INSTALL_FAILED]="Installation failed at line %s. Please check the error messages above."
+    [INSTALLING_CURL]="Installing curl..."
+    [INSTALLING_SYSTEMD]="Installing systemd..."
+    [OS_DETECT_ERROR]="Unable to detect OS for curl installation"
+    [OS_DETECT_ERROR_SYSTEMD]="Unable to detect OS for systemd installation"
+    [DOCKER_INSTALLED]="Docker is already installed"
+    [INSTALLING_DOCKER]="Installing Docker..."
+    [REMOVING_PODMAN]="Removing podman-docker to avoid conflicts with Docker CE..."
+    [ADDING_DOCKER_REPO]="Adding official Docker CE repository..."
+    [DOCKER_INSTALL_FAILED]="Docker installation failed"
+    [OS_DETECT_ERROR_DOCKER]="Unable to detect OS for Docker installation"
+    [DOCKER_INSTALLED_SUCCESS]="Docker installed successfully"
+    [FIREWALL_PORT_OPENED]="Firewall: port %s opened"
+    [FIREWALL_PORT_ALREADY_OPEN]="Firewall: port %s already open in %s"
+    [FIREWALL_NOT_ACTIVE]="firewalld detected but not running. Skipping automatic opening of %s."
+    [FIREWALL_FAILED_RUNTIME]="Failed to open %s in firewalld runtime configuration."
+    [FIREWALL_FAILED_PERMANENT]="Failed to add %s to firewalld permanent configuration."
+    [UFW_INACTIVE]="UFW detected but inactive. Port %s was not modified."
+    [UFW_FAILED]="Failed to allow %s via UFW."
+    [IPTABLES_NOT_AVAILABLE]="iptables command not available to open %s."
+    [IPTABLES_FAILED]="Failed to add iptables rule for %s."
+    [FIREWALL_NO_BACKEND]="No supported firewall backend detected. Please ensure port %s is reachable."
+    [IPTABLES_PERSISTENCE_NETFILTER]="Configuring iptables persistence using netfilter-persistent..."
+    [IPTABLES_PERSISTENCE_SERVICES]="Configuring iptables persistence using iptables-services..."
+    [IPTABLES_PERSISTENCE_OPENRC]="Configuring iptables persistence using iptables-openrc..."
+    [IPTABLES_PERSISTENCE_UNSUPPORTED]="Automatic iptables persistence is not supported for OS: %s. Please configure rule saving manually."
+    [IPTABLES_RULES_SAVED]="iptables rules saved for persistence."
+    [IPTABLES_PERSISTENCE_CONFIGURED]="iptables persistence configured and current rules saved."
+    [IPTABLES_PERSISTENCE_FAILED]="Failed to confirm iptables rule persistence. Please verify manually."
+    [FIREWALLD_RELOADED]="firewalld reloaded to apply permanent firewall changes."
+    [FIREWALLD_RELOAD_FAILED]="Failed to reload firewalld. Please reload it manually to apply changes."
+    [CADDY_INSTALLED]="Caddy is already installed"
+    [INSTALLING_CADDY]="Installing Caddy..."
+    [INSTALLING_CADDY_SCRIPT]="Installing Caddy using official script..."
+    [CADDY_INSTALL_FAILED]="Caddy installation failed"
+    [CADDY_INSTALLED_SUCCESS]="Caddy installed successfully"
+    [CADDY_CONFIGURING]="Configuring Caddy HTTP reverse proxy for host: %s"
+    [CADDY_TARGET_PORT]="Configuring Caddy for target port: %s (proxying to %s)"
+    [CADDY_BACKUP]="Backing up existing Caddyfile to %s"
+    [CADDY_DOMAIN_SETUP]="Configuring Caddy domain with Let's Encrypt SSL certificate..."
+    [CADDY_CONFIG_VALID]="Caddyfile configuration is valid"
+    [CADDY_VALIDATION_FAILED]="Caddyfile validation failed, but continuing..."
+    [CADDY_RELOADING]="Reloading Caddy configuration..."
+    [CADDY_RELOADED]="Caddy configuration reloaded"
+    [CADDY_RELOAD_FAILED]="Caddy reload failed or timed out, restarting..."
+    [CADDY_STARTING]="Starting Caddy service..."
+    [CADDY_NO_SYSTEMCTL]="systemctl not available, trying to start Caddy directly..."
+    [CADDY_WAIT_SSL]="Waiting for Caddy to start and obtain SSL certificate (this may take up to 30 seconds)..."
+    [CADDY_WAIT_START]="Waiting for Caddy to start (this may take up to 30 seconds)..."
+    [CADDY_RUNNING]="Caddy is running"
+    [CADDY_NOT_RUNNING_SYSTEMCTL]="Caddy service may not be running properly. Check logs with: journalctl -u caddy"
+    [CADDY_NOT_RUNNING]="Caddy may not be running properly. Check Caddy logs."
+    [DOMAIN_REQUIRED]="Domain is required for HTTPS configuration"
+    [SCRIPT_REQUIRES_INTERACTIVE]="================================================"
+    [SCRIPT_REQUIRES_INTERACTIVE2]="This script requires interactive mode!"
+    [SCRIPT_REQUIRES_INTERACTIVE3]="You cannot run this script through a pipe (curl ... | bash)."
+    [SCRIPT_DOWNLOAD_DIRECT]="Please download and run it directly:"
+    [SCRIPT_OR_WGET]="Or use wget:"
+    [SCRIPT_TITLE]="================================================"
+    [SCRIPT_TITLE2]="WireGuard Obfuscator Easy - Installation Script"
+    [SCRIPT_GUIDE]="This script will guide you through the installation process."
+    [SCRIPT_QUESTIONS]="You will be asked a few questions to configure your setup."
+    [SCRIPT_REQUIRES_ROOT]="This script must be run as root. Re-launching with sudo. You may be prompted for your password."
+    [SCRIPT_REQUIRES_ROOT2]="This script must be run as root"
+    [SCRIPT_RUN_AS_ROOT]="Please run as root (for example, with sudo if available):"
+    [DETECTED_OS]="Detected OS: %s"
+    [DETECTED_FIREWALL]="Detected firewall manager: %s"
+    [FIREWALL_INACTIVE]="Firewall manager detected (%s) but appears inactive."
+    [NO_FIREWALL]="No supported firewall manager detected."
+    [INSTALLING_PACKAGES]="Installing required packages... (this may take a while)"
+    [SYSTEMCTL_NOT_INSTALLED]="systemctl is not installed. Please install it and try again."
+    [SYSTEMCTL_TRY]="Try: systemctl start docker"
+    [DOCKER_NOT_RUNNING]="Docker is installed but not running. Please start Docker and try again."
+    [DETECTING_IP]="Detecting external IP address..."
+    [IP_DETECT_FAILED]="Failed to detect external IP address"
+    [EXTERNAL_IP]="External IP: %s"
+    [OLD_CONFIG_FOUND]="Old configuration found. Do you want to keep old settings? (Y/n): "
+    [CONFIG_DIR]="Config directory: %s"
+    [PULLING_IMAGE]="Pulling Docker image: %s..."
+    [PULL_FAILED]="Failed to pull Docker image. Make sure the image exists and you have internet connection."
+    [STARTING_CONTAINER]="Starting WireGuard Obfuscator Easy Docker container..."
+    [CONTAINER_START_FAILED]="Failed to start Docker container"
+    [CONTAINER_WAITING]="Waiting for container to be ready..."
+    [CONTAINER_RUNNING]="Container is running"
+    [CONTAINER_FAILED]="Container failed to start. Check logs with: docker logs %s"
+    [APP_WAITING]="Waiting for application to be ready..."
+    [APP_RESPONDING]="Application is responding"
+    [APP_NOT_READY]="Application may not be fully ready yet. It should be available shortly."
+    [GETTING_VERSION]="Getting application version..."
+    [APP_VERSION]="Application version: v%s"
+    [VERSION_UNKNOWN]="Could not determine application version"
+    [ENABLE_HTTPS_PROMPT]="Do you want to enable HTTPS (recommended)? It requires a domain name, but you can use a free domain name. (y/N): "
+    [NEED_GUIDE_DUCKDNS]="Do you need a guide how to obtain a free domain name from DuckDNS? (Y/n/q): "
+    [DUCKDNS_GUIDE_INTRO]="We'll use DuckDNS to create a free domain name for your server."
+    [DUCKDNS_YOUR_IP]="Your server IP address is: %s"
+    [DUCKDNS_STEPS]="Follow these steps to set up DuckDNS:"
+    [DUCKDNS_STEP1]="1. Open your web browser and go to: https://www.duckdns.org/"
+    [DUCKDNS_STEP2]="2. Click on 'Sign in with Google' or 'Sign in with GitHub'"
+    [DUCKDNS_STEP2_NOTE]="   (You can use any Google or GitHub account - it's free)"
+    [DUCKDNS_STEP3]="3. After signing in, you'll see a page where you must:"
+    [DUCKDNS_STEP3_1]="   - Enter a new subdomain name (e.g., any name you want, but it must be unique and not already taken)"
+    [DUCKDNS_STEP3_2]="   - Enter your server IP address: %s"
+    [DUCKDNS_STEP3_3]="   - Click 'add domain' or 'update ip'"
+    [DUCKDNS_ENTER_SUBDOMAIN]="After creating your DuckDNS domain, enter your DuckDNS subdomain name (or enter 'q' to cancel and continue without HTTPS)."
+    [DUCKDNS_EXAMPLE]="Example: If your domain is 'myvpn.duckdns.org', enter 'myvpn'."
+    [DUCKDNS_SUBDOMAIN_PROMPT]="DuckDNS subdomain: "
+    [SUBDOMAIN_EMPTY]="Subdomain cannot be empty. Please enter your DuckDNS subdomain."
+    [SUBDOMAIN_INVALID]="Invalid subdomain. Use only letters, numbers, and hyphens."
+    [ENTER_DOMAIN]="Enter your domain name (or enter 'q' to cancel and continue without HTTPS): "
+    [DOMAIN_EMPTY]="Domain cannot be empty. Please enter your domain name."
+    [DOMAIN_INVALID]="Invalid domain name."
+    [CHECKING_DNS]="Checking if domain %s points to your IP address (%s)..."
+    [DNS_CONFIGURED]="DNS is correctly configured! Domain %s points to %s."
+    [DNS_WAITING]="Waiting for DNS to propagate... (attempt %s/%s)"
+    [DNS_VERIFY_FAILED]="Could not verify DNS configuration automatically. Please check your DNS settings."
+    [DNS_DUCKDNS_NOTE]="If you are using DuckDNS, please make sure you have added your domain and your server IP address."
+    [DNS_PROPAGATION_NOTE]="It's possible that your DNS is not propagated yet. Please wait some time and try again. Some DNS providers take up to 24 hours to propagate."
+    [CONTINUE_WITHOUT_HTTPS]="Let's continue without HTTPS for now."
+    [SSL_SETUP]="SSL Certificate Setup"
+    [SSL_LETSENCRYPT]="Let's Encrypt will automatically provide SSL certificates for your domain."
+    [SSL_EMAIL_INFO]="You can optionally provide an email address to receive notifications"
+    [SSL_EMAIL_INFO2]="when your certificate is about to expire (certificates are renewed automatically)."
+    [SSL_EMAIL_OPTIONAL]="This email is completely optional - SSL certificates will work without it."
+    [EMAIL_PROMPT]="Enter email address for notifications (or press Enter to skip): "
+    [EMAIL_SKIPPED]="Continuing without email. SSL certificates will still work perfectly."
+    [EMAIL_SET]="Email set: %s"
+    [EMAIL_NOTIFICATIONS]="You'll receive notifications about certificate expiration (if any)."
+    [EMAIL_INVALID]="Invalid email format!"
+    [EMAIL_INVALID_FORMAT]="Please enter a valid email address (e.g., user@example.com)"
+    [EMAIL_SKIP_NOTE]="or press Enter without typing anything to skip."
+    [HTTPS_SETUP]="Setting up HTTPS with Caddy..."
+    [HTTPS_FAILED]="HTTPS setup failed. Let's continue without HTTPS."
+    [HTTP_PROXY_SETUP]="Setting up HTTP reverse proxy with Caddy on port 80..."
+    [HTTP_PROXY_FAILED]="Failed to configure HTTP reverse proxy with Caddy. HTTP will remain available on port %s."
+    [HTTP_PROXY_SUCCESS]="Caddy HTTP reverse proxy configured successfully."
+    [INSTALL_COMPLETE]="================================================"
+    [INSTALL_COMPLETE2]="Installation completed successfully!"
+    [INSTALLED_VERSION]="Installed version: v%s"
+    [FIREWALL_OPENED_PORTS]="Firewall (%s) opened ports: %s"
+    [FIREWALL_MANUAL_PORTS]="Firewall ports requiring manual configuration: %s"
+    [UFW_NOT_APPLIED]="UFW rules were not applied automatically because UFW is inactive."
+    [FIREWALLD_NOT_APPLIED]="firewalld rules were not applied automatically because the service is not running."
+    [CONFIGURATION]="Configuration:"
+    [CONTAINER_NAME]="  Container name: %s"
+    [WIREGUARD_PORT]="  WireGuard port: %s"
+    [WEB_PREFIX]="  Web prefix: %s"
+    [HTTPS_ENABLED]="  HTTPS enabled: %s"
+    [HTTP_URL]="HTTP URL: %s (not recommended - use HTTPS)"
+    [HTTPS_URL]="HTTPS URL: %s (using Let's Encrypt certificate)"
+    [HTTP_URL_SIMPLE]="HTTP URL: %s"
+    [LOGIN_CREDENTIALS]="Login Credentials:"
+    [USERNAME]="  Username: admin"
+    [PASSWORD]="  Password: %s"
+    [LOGIN_SAME]="Login Credentials are the same as the ones you used to install the script."
+    [CERT_WAIT]="It can some time for the certificate to be obtained. If you cannot access the web interface, please wait a few minutes and try again."
+    [SAVE_CREDENTIALS]="Save these credentials in a secure location!"
+    [HTTPS_NOT_ENABLED]="HTTPS is not enabled. You can enable it later by running the script again."
+)
+
+# Language strings - Russian
+declare -A MSG_RU=(
+    [SELECT_LANG_TITLE]="Language selection / Выбор языка"
+    [SELECT_LANG]="Select language / Выберите язык"
+    [LANG_EN]="English"
+    [LANG_RU]="Русский"
+    [INSTALL_FAILED]="Установка не удалась на строке %s. Проверьте сообщения об ошибках выше."
+    [INSTALLING_CURL]="Установка curl..."
+    [INSTALLING_SYSTEMD]="Установка systemd..."
+    [OS_DETECT_ERROR]="Не удалось определить ОС для установки curl"
+    [OS_DETECT_ERROR_SYSTEMD]="Не удалось определить ОС для установки systemd"
+    [DOCKER_INSTALLED]="Docker уже установлен"
+    [INSTALLING_DOCKER]="Установка Docker..."
+    [REMOVING_PODMAN]="Удаление podman-docker во избежание конфликтов с Docker CE..."
+    [ADDING_DOCKER_REPO]="Добавление официального репозитория Docker CE..."
+    [DOCKER_INSTALL_FAILED]="Не удалось установить Docker"
+    [OS_DETECT_ERROR_DOCKER]="Не удалось определить ОС для установки Docker"
+    [DOCKER_INSTALLED_SUCCESS]="Docker успешно установлен"
+    [FIREWALL_PORT_OPENED]="Файрвол: порт %s открыт"
+    [FIREWALL_PORT_ALREADY_OPEN]="Файрвол: порт %s уже открыт в %s"
+    [FIREWALL_NOT_ACTIVE]="firewalld обнаружен, но не запущен. Пропуск автоматического открытия %s."
+    [FIREWALL_FAILED_RUNTIME]="Не удалось открыть %s в runtime конфигурации firewalld."
+    [FIREWALL_FAILED_PERMANENT]="Не удалось добавить %s в постоянную конфигурацию firewalld."
+    [UFW_INACTIVE]="UFW обнаружен, но неактивен. Порт %s не был изменён."
+    [UFW_FAILED]="Не удалось разрешить %s через UFW."
+    [IPTABLES_NOT_AVAILABLE]="Команда iptables недоступна для открытия %s."
+    [IPTABLES_FAILED]="Не удалось добавить правило iptables для %s."
+    [FIREWALL_NO_BACKEND]="Не обнаружено поддерживаемого файрвола. Убедитесь, что порт %s доступен."
+    [IPTABLES_PERSISTENCE_NETFILTER]="Настройка сохранения правил iptables с помощью netfilter-persistent..."
+    [IPTABLES_PERSISTENCE_SERVICES]="Настройка сохранения правил iptables с помощью iptables-services..."
+    [IPTABLES_PERSISTENCE_OPENRC]="Настройка сохранения правил iptables с помощью iptables-openrc..."
+    [IPTABLES_PERSISTENCE_UNSUPPORTED]="Автоматическое сохранение правил iptables не поддерживается для ОС: %s. Настройте сохранение правил вручную."
+    [IPTABLES_RULES_SAVED]="Правила iptables сохранены для постоянного использования."
+    [IPTABLES_PERSISTENCE_CONFIGURED]="Сохранение правил iptables настроено, текущие правила сохранены."
+    [IPTABLES_PERSISTENCE_FAILED]="Не удалось подтвердить сохранение правил iptables. Проверьте вручную."
+    [FIREWALLD_RELOADED]="firewalld перезагружен для применения постоянных изменений."
+    [FIREWALLD_RELOAD_FAILED]="Не удалось перезагрузить firewalld. Перезагрузите его вручную для применения изменений."
+    [CADDY_INSTALLED]="Caddy уже установлен"
+    [INSTALLING_CADDY]="Установка Caddy..."
+    [INSTALLING_CADDY_SCRIPT]="Установка Caddy с помощью официального скрипта..."
+    [CADDY_INSTALL_FAILED]="Не удалось установить Caddy"
+    [CADDY_INSTALLED_SUCCESS]="Caddy успешно установлен"
+    [CADDY_CONFIGURING]="Настройка HTTP обратного прокси Caddy для хоста: %s"
+    [CADDY_TARGET_PORT]="Настройка Caddy для целевого порта: %s (проксирование на %s)"
+    [CADDY_BACKUP]="Создание резервной копии Caddyfile в %s"
+    [CADDY_DOMAIN_SETUP]="Настройка домена Caddy с SSL-сертификатом Let's Encrypt..."
+    [CADDY_CONFIG_VALID]="Конфигурация Caddyfile корректна"
+    [CADDY_VALIDATION_FAILED]="Проверка Caddyfile не удалась, но продолжаем..."
+    [CADDY_RELOADING]="Перезагрузка конфигурации Caddy..."
+    [CADDY_RELOADED]="Конфигурация Caddy перезагружена"
+    [CADDY_RELOAD_FAILED]="Перезагрузка Caddy не удалась или превышено время ожидания, перезапуск..."
+    [CADDY_STARTING]="Запуск сервиса Caddy..."
+    [CADDY_NO_SYSTEMCTL]="systemctl недоступен, пробуем запустить Caddy напрямую..."
+    [CADDY_WAIT_SSL]="Ожидание запуска Caddy и получения SSL-сертификата (это может занять до 30 секунд)..."
+    [CADDY_WAIT_START]="Ожидание запуска Caddy (это может занять до 30 секунд)..."
+    [CADDY_RUNNING]="Caddy запущен"
+    [CADDY_NOT_RUNNING_SYSTEMCTL]="Сервис Caddy может работать некорректно. Проверьте логи: journalctl -u caddy"
+    [CADDY_NOT_RUNNING]="Caddy может работать некорректно. Проверьте логи Caddy."
+    [DOMAIN_REQUIRED]="Для настройки HTTPS требуется доменное имя"
+    [SCRIPT_REQUIRES_INTERACTIVE]="================================================"
+    [SCRIPT_REQUIRES_INTERACTIVE2]="Этот скрипт требует интерактивного режима!"
+    [SCRIPT_REQUIRES_INTERACTIVE3]="Вы не можете запустить этот скрипт через pipe (curl ... | bash)."
+    [SCRIPT_DOWNLOAD_DIRECT]="Пожалуйста, скачайте и запустите его напрямую:"
+    [SCRIPT_OR_WGET]="Или используйте wget:"
+    [SCRIPT_TITLE]="================================================"
+    [SCRIPT_TITLE2]="WireGuard Obfuscator Easy - Скрипт установки"
+    [SCRIPT_GUIDE]="Этот скрипт проведёт вас через процесс установки."
+    [SCRIPT_QUESTIONS]="Вам будет задано несколько вопросов для настройки."
+    [SCRIPT_REQUIRES_ROOT]="Этот скрипт должен выполняться от имени root. Перезапуск с sudo. Вас могут попросить ввести пароль."
+    [SCRIPT_REQUIRES_ROOT2]="Этот скрипт должен выполняться от имени root"
+    [SCRIPT_RUN_AS_ROOT]="Пожалуйста, запустите от имени root (например, с помощью sudo, если доступно):"
+    [DETECTED_OS]="Обнаружена ОС: %s"
+    [DETECTED_FIREWALL]="Обнаружен менеджер файрвола: %s"
+    [FIREWALL_INACTIVE]="Обнаружен менеджер файрвола (%s), но он неактивен."
+    [NO_FIREWALL]="Не обнаружено поддерживаемого менеджера файрвола."
+    [INSTALLING_PACKAGES]="Установка необходимых пакетов... (это может занять некоторое время)"
+    [SYSTEMCTL_NOT_INSTALLED]="systemctl не установлен. Пожалуйста, установите его и попробуйте снова."
+    [SYSTEMCTL_TRY]="Попробуйте: systemctl start docker"
+    [DOCKER_NOT_RUNNING]="Docker установлен, но не запущен. Пожалуйста, запустите Docker и попробуйте снова."
+    [DETECTING_IP]="Определение внешнего IP-адреса..."
+    [IP_DETECT_FAILED]="Не удалось определить внешний IP-адрес"
+    [EXTERNAL_IP]="Внешний IP: %s"
+    [OLD_CONFIG_FOUND]="Найдена старая конфигурация. Хотите сохранить старые настройки? (Y/n): "
+    [CONFIG_DIR]="Директория конфигурации: %s"
+    [PULLING_IMAGE]="Загрузка Docker-образа: %s..."
+    [PULL_FAILED]="Не удалось загрузить Docker-образ. Убедитесь, что образ существует и у вас есть подключение к интернету."
+    [STARTING_CONTAINER]="Запуск Docker-контейнера WireGuard Obfuscator Easy..."
+    [CONTAINER_START_FAILED]="Не удалось запустить Docker-контейнер"
+    [CONTAINER_WAITING]="Ожидание готовности контейнера..."
+    [CONTAINER_RUNNING]="Контейнер запущен"
+    [CONTAINER_FAILED]="Контейнер не запустился. Проверьте логи: docker logs %s"
+    [APP_WAITING]="Ожидание готовности приложения..."
+    [APP_RESPONDING]="Приложение отвечает"
+    [APP_NOT_READY]="Приложение может быть ещё не полностью готово. Оно должно стать доступным в ближайшее время."
+    [GETTING_VERSION]="Получение версии приложения..."
+    [APP_VERSION]="Версия приложения: v%s"
+    [VERSION_UNKNOWN]="Не удалось определить версию приложения"
+    [ENABLE_HTTPS_PROMPT]="Хотите включить HTTPS (рекомендуется)? Требуется доменное имя, но вы можете использовать бесплатный домен. (y/N): "
+    [NEED_GUIDE_DUCKDNS]="Нужна инструкция, как получить бесплатный домен от DuckDNS? (Y/n/q): "
+    [DUCKDNS_GUIDE_INTRO]="Мы используем DuckDNS для создания бесплатного доменного имени для вашего сервера."
+    [DUCKDNS_YOUR_IP]="IP-адрес вашего сервера: %s"
+    [DUCKDNS_STEPS]="Следуйте этим шагам для настройки DuckDNS:"
+    [DUCKDNS_STEP1]="1. Откройте веб-браузер и перейдите на: https://www.duckdns.org/"
+    [DUCKDNS_STEP2]="2. Нажмите 'Sign in with Google' или 'Sign in with GitHub'"
+    [DUCKDNS_STEP2_NOTE]="   (Вы можете использовать любой аккаунт Google или GitHub - это бесплатно)"
+    [DUCKDNS_STEP3]="3. После входа вы увидите страницу, где нужно:"
+    [DUCKDNS_STEP3_1]="   - Ввести новое имя поддомена (например, любое имя, но оно должно быть уникальным и не занятым)"
+    [DUCKDNS_STEP3_2]="   - Ввести IP-адрес вашего сервера: %s"
+    [DUCKDNS_STEP3_3]="   - Нажать 'add domain' или 'update ip'"
+    [DUCKDNS_ENTER_SUBDOMAIN]="После создания домена DuckDNS введите имя вашего поддомена DuckDNS (или введите 'q' для отмены и продолжения без HTTPS)."
+    [DUCKDNS_EXAMPLE]="Пример: Если ваш домен 'myvpn.duckdns.org', введите 'myvpn'."
+    [DUCKDNS_SUBDOMAIN_PROMPT]="Поддомен DuckDNS: "
+    [SUBDOMAIN_EMPTY]="Поддомен не может быть пустым. Пожалуйста, введите ваш поддомен DuckDNS."
+    [SUBDOMAIN_INVALID]="Некорректный поддомен. Используйте только буквы, цифры и дефисы."
+    [ENTER_DOMAIN]="Введите ваше доменное имя (или введите 'q' для отмены и продолжения без HTTPS): "
+    [DOMAIN_EMPTY]="Домен не может быть пустым. Пожалуйста, введите ваше доменное имя."
+    [DOMAIN_INVALID]="Некорректное доменное имя."
+    [CHECKING_DNS]="Проверка, указывает ли домен %s на ваш IP-адрес (%s)..."
+    [DNS_CONFIGURED]="DNS настроен правильно! Домен %s указывает на %s."
+    [DNS_WAITING]="Ожидание распространения DNS... (попытка %s/%s)"
+    [DNS_VERIFY_FAILED]="Не удалось автоматически проверить конфигурацию DNS. Пожалуйста, проверьте настройки DNS."
+    [DNS_DUCKDNS_NOTE]="Если вы используете DuckDNS, убедитесь, что вы добавили свой домен и IP-адрес сервера."
+    [DNS_PROPAGATION_NOTE]="Возможно, ваш DNS ещё не распространился. Подождите некоторое время и попробуйте снова. Некоторым DNS-провайдерам требуется до 24 часов для распространения."
+    [CONTINUE_WITHOUT_HTTPS]="Продолжим без HTTPS пока что."
+    [SSL_SETUP]="Настройка SSL-сертификата"
+    [SSL_LETSENCRYPT]="Let's Encrypt автоматически предоставит SSL-сертификаты для вашего домена."
+    [SSL_EMAIL_INFO]="Вы можете опционально указать адрес электронной почты для получения уведомлений,"
+    [SSL_EMAIL_INFO2]="когда ваш сертификат истекает (сертификаты продлеваются автоматически)."
+    [SSL_EMAIL_OPTIONAL]="Этот email полностью опционален - SSL-сертификаты будут работать и без него."
+    [EMAIL_PROMPT]="Введите адрес электронной почты для уведомлений (или нажмите Enter для пропуска): "
+    [EMAIL_SKIPPED]="Продолжение без email. SSL-сертификаты будут отлично работать."
+    [EMAIL_SET]="Email установлен: %s"
+    [EMAIL_NOTIFICATIONS]="Вы будете получать уведомления об истечении сертификата (если они будут)."
+    [EMAIL_INVALID]="Некорректный формат email!"
+    [EMAIL_INVALID_FORMAT]="Пожалуйста, введите корректный адрес email (например, user@example.com)"
+    [EMAIL_SKIP_NOTE]="или нажмите Enter, не вводя ничего, для пропуска."
+    [HTTPS_SETUP]="Настройка HTTPS с Caddy..."
+    [HTTPS_FAILED]="Настройка HTTPS не удалась. Продолжим без HTTPS."
+    [HTTP_PROXY_SETUP]="Настройка HTTP обратного прокси Caddy на порту 80..."
+    [HTTP_PROXY_FAILED]="Не удалось настроить HTTP обратный прокси Caddy. HTTP останется доступным на порту %s."
+    [HTTP_PROXY_SUCCESS]="HTTP обратный прокси Caddy успешно настроен."
+    [INSTALL_COMPLETE]="================================================"
+    [INSTALL_COMPLETE2]="Установка успешно завершена!"
+    [INSTALLED_VERSION]="Установленная версия: v%s"
+    [FIREWALL_OPENED_PORTS]="Файрвол (%s) открыл порты: %s"
+    [FIREWALL_MANUAL_PORTS]="Порты файрвола, требующие ручной настройки: %s"
+    [UFW_NOT_APPLIED]="Правила UFW не были применены автоматически, так как UFW неактивен."
+    [FIREWALLD_NOT_APPLIED]="Правила firewalld не были применены автоматически, так как сервис не запущен."
+    [CONFIGURATION]="Конфигурация:"
+    [CONTAINER_NAME]="  Имя контейнера: %s"
+    [WIREGUARD_PORT]="  Порт WireGuard: %s"
+    [WEB_PREFIX]="  Веб-префикс: %s"
+    [HTTPS_ENABLED]="  HTTPS включён: %s"
+    [HTTP_URL]="HTTP URL: %s (не рекомендуется - используйте HTTPS)"
+    [HTTPS_URL]="HTTPS URL: %s (используется сертификат Let's Encrypt)"
+    [HTTP_URL_SIMPLE]="HTTP URL: %s"
+    [LOGIN_CREDENTIALS]="Учётные данные для входа:"
+    [USERNAME]="  Имя пользователя: admin"
+    [PASSWORD]="  Пароль: %s"
+    [LOGIN_SAME]="Учётные данные для входа те же, что вы использовали при установке скрипта."
+    [CERT_WAIT]="Получение сертификата может занять некоторое время. Если вы не можете получить доступ к веб-интерфейсу, подождите несколько минут и попробуйте снова."
+    [SAVE_CREDENTIALS]="Сохраните эти учётные данные в безопасном месте!"
+    [HTTPS_NOT_ENABLED]="HTTPS не включён. Вы можете включить его позже, запустив скрипт снова."
+)
+
+# Function to get localized message
+msg() {
+    local key=$1
+    shift
+    local template
+    
+    if [ "$LANG_CHOICE" = "ru" ]; then
+        template="${MSG_RU[$key]}"
+    else
+        template="${MSG_EN[$key]}"
+    fi
+    
+    if [ $# -gt 0 ]; then
+        printf "$template" "$@"
+    else
+        echo "$template"
+    fi
+}
+
+# Trap to handle errors (only for critical failures)
+trap 'print_error "$(msg INSTALL_FAILED $LINENO)"' ERR INT TERM
 
 # Configuration
 IMAGE_NAME="docker.io/clustermeerkat/wg-obf-easy:latest"
@@ -83,7 +435,7 @@ detect_os() {
 
 # Function to install curl
 install_curl() {
-    print_info "Installing curl..."
+    print_info "$(msg INSTALLING_CURL)"
     if [ "$OS" = "debian" ] || [ "$OS" = "ubuntu" ]; then
         apt-get update -qq
         apt-get install -y curl
@@ -96,13 +448,13 @@ install_curl() {
     elif [ "$OS" = "alpine" ]; then
         apk add --no-cache curl
     else
-        print_error "Unable to detect OS for curl installation"
+        print_error "$(msg OS_DETECT_ERROR)"
         exit 1
     fi
 }
 
 install_systemd() {
-    print_info "Installing systemd..."
+    print_info "$(msg INSTALLING_SYSTEMD)"
     if [ "$OS" = "debian" ] || [ "$OS" = "ubuntu" ]; then
         apt-get update -qq
         apt-get install -y systemd
@@ -111,7 +463,7 @@ install_systemd() {
     elif [ "$OS" = "alpine" ]; then
         apk add --no-cache systemd
     else
-        print_error "Unable to detect OS for systemd installation"
+        print_error "$(msg OS_DETECT_ERROR_SYSTEMD)"
         exit 1
     fi
 }
@@ -119,11 +471,11 @@ install_systemd() {
 # Function to install Docker
 install_docker() {
     if command_exists docker; then
-        print_info "Docker is already installed"
+        print_info "$(msg DOCKER_INSTALLED)"
         return
     fi
 
-    print_info "Installing Docker..."
+    print_info "$(msg INSTALLING_DOCKER)"
     
     if [ "$OS" = "debian" ] || [ "$OS" = "ubuntu" ]; then
         # Install Docker using official script
@@ -134,23 +486,23 @@ install_docker() {
         local docker_packages="docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin"
         if command_exists dnf; then
             if rpm -q podman-docker >/dev/null 2>&1; then
-                print_warning "Removing podman-docker to avoid conflicts with Docker CE..."
+                print_warning "$(msg REMOVING_PODMAN)"
                 dnf remove -y podman-docker >/dev/null
             fi
             dnf install -y dnf-plugins-core
             if ! dnf repolist 2>/dev/null | grep -q "^docker-ce-stable"; then
-                print_info "Adding official Docker CE repository..."
+                print_info "$(msg ADDING_DOCKER_REPO)"
                 dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo >/dev/null
             fi
             dnf install -y $docker_packages
         else
             if rpm -q podman-docker >/dev/null 2>&1; then
-                print_warning "Removing podman-docker to avoid conflicts with Docker CE..."
+                print_warning "$(msg REMOVING_PODMAN)"
                 yum remove -y podman-docker >/dev/null
             fi
             yum install -y yum-utils
             if ! yum repolist 2>/dev/null | grep -q "^docker-ce-stable"; then
-                print_info "Adding official Docker CE repository..."
+                print_info "$(msg ADDING_DOCKER_REPO)"
                 yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo >/dev/null
             fi
             yum install -y $docker_packages
@@ -162,17 +514,17 @@ install_docker() {
         rc-update add docker boot
         service docker start
     else
-        print_error "Unable to detect OS for Docker installation"
+        print_error "$(msg OS_DETECT_ERROR_DOCKER)"
         exit 1
     fi
 
     # Verify Docker installation
     if ! command_exists docker; then
-        print_error "Docker installation failed"
+        print_error "$(msg DOCKER_INSTALL_FAILED)"
         exit 1
     fi
 
-    print_info "Docker installed successfully"
+    print_info "$(msg DOCKER_INSTALLED_SUCCESS)"
 }
 
 # Function to generate random password
@@ -259,7 +611,7 @@ record_firewall_result() {
 
     target_array+=("$spec")
     if [ "$outcome" = "opened" ]; then
-        print_info "Firewall: port $spec opened"
+        print_info "$(msg FIREWALL_PORT_OPENED "$spec")"
     fi
 }
 
@@ -273,14 +625,14 @@ ensure_iptables_persistence() {
     if [ "$IPTABLES_PERSISTENCE_CONFIGURED" != "true" ]; then
         case "$OS" in
             debian|ubuntu)
-                print_info "Configuring iptables persistence using netfilter-persistent..."
+                print_info "$(msg IPTABLES_PERSISTENCE_NETFILTER)"
                 export DEBIAN_FRONTEND=noninteractive
                 apt-get update -qq
                 apt-get install -y netfilter-persistent iptables-persistent
                 install_performed=true
                 ;;
             rhel|centos|fedora)
-                print_info "Configuring iptables persistence using iptables-services..."
+                print_info "$(msg IPTABLES_PERSISTENCE_SERVICES)"
                 if command_exists dnf; then
                     dnf install -y iptables-services
                 else
@@ -291,14 +643,14 @@ ensure_iptables_persistence() {
                 install_performed=true
                 ;;
             alpine)
-                print_info "Configuring iptables persistence using iptables-openrc..."
+                print_info "$(msg IPTABLES_PERSISTENCE_OPENRC)"
                 apk add --no-cache iptables ip6tables iptables-openrc
                 rc-update add iptables default >/dev/null 2>&1 || true
                 rc-update add ip6tables default >/dev/null 2>&1 || true
                 install_performed=true
                 ;;
             *)
-                print_warning "Automatic iptables persistence is not supported for OS: $OS. Please configure rule saving manually."
+                print_warning "$(msg IPTABLES_PERSISTENCE_UNSUPPORTED "$OS")"
                 IPTABLES_PERSISTENCE_CONFIGURED=true
                 return
                 ;;
@@ -354,12 +706,12 @@ ensure_iptables_persistence() {
 
     if [ "$save_success" = true ]; then
         if [ "$install_performed" = true ]; then
-            print_info "iptables persistence configured and current rules saved."
+            print_info "$(msg IPTABLES_PERSISTENCE_CONFIGURED)"
         else
-            print_info "iptables rules saved for persistence."
+            print_info "$(msg IPTABLES_RULES_SAVED)"
         fi
     else
-        print_warning "Failed to confirm iptables rule persistence. Please verify manually."
+        print_warning "$(msg IPTABLES_PERSISTENCE_FAILED)"
     fi
 }
 
@@ -371,7 +723,7 @@ open_firewall_port() {
     case "$FIREWALL_BACKEND" in
         firewalld)
             if [ "$FIREWALL_BACKEND_STATE" != "active" ]; then
-                print_warning "firewalld detected but not running. Skipping automatic opening of $spec."
+                print_warning "$(msg FIREWALL_NOT_ACTIVE "$spec")"
                 record_firewall_result "$spec" "skipped" FIREWALL_PORTS_SKIPPED
                 return
             fi
@@ -383,7 +735,7 @@ open_firewall_port() {
                 if firewall-cmd --add-port="$spec" >/dev/null 2>&1; then
                     runtime_added=true
                 else
-                    print_warning "Failed to open $spec in firewalld runtime configuration."
+                    print_warning "$(msg FIREWALL_FAILED_RUNTIME "$spec")"
                 fi
             fi
 
@@ -392,41 +744,41 @@ open_firewall_port() {
                     permanent_added=true
                     FIREWALL_RELOAD_REQUIRED=true
                 else
-                    print_warning "Failed to add $spec to firewalld permanent configuration."
+                    print_warning "$(msg FIREWALL_FAILED_PERMANENT "$spec")"
                 fi
             fi
 
             if [ "$runtime_added" = true ] || [ "$permanent_added" = true ]; then
                 record_firewall_result "$spec" "opened" FIREWALL_PORTS_OPENED
             else
-                print_info "Firewall: port $spec already open in firewalld"
+                print_info "$(msg FIREWALL_PORT_ALREADY_OPEN "$spec" "firewalld")"
             fi
             ;;
         ufw)
             local status_line
             status_line=$(ufw status 2>/dev/null | head -n1 || echo "")
             if echo "$status_line" | grep -qi "inactive"; then
-                print_warning "UFW detected but inactive. Port $spec was not modified."
+                print_warning "$(msg UFW_INACTIVE "$spec")"
                 record_firewall_result "$spec" "skipped" FIREWALL_PORTS_SKIPPED
                 return
             fi
 
             if ufw status numbered 2>/dev/null | grep -qw "$spec"; then
-                print_info "Firewall: port $spec already allowed in UFW"
+                print_info "$(msg FIREWALL_PORT_ALREADY_OPEN "$spec" "UFW")"
                 return
             fi
 
             if ufw allow "$spec" >/dev/null 2>&1; then
                 record_firewall_result "$spec" "opened" FIREWALL_PORTS_OPENED
             else
-                print_warning "Failed to allow $spec via UFW."
+                print_warning "$(msg UFW_FAILED "$spec")"
                 record_firewall_result "$spec" "skipped" FIREWALL_PORTS_SKIPPED
             fi
             ;;
         iptables)
             if ! command_exists iptables; then
                 record_firewall_result "$spec" "skipped" FIREWALL_PORTS_SKIPPED
-                print_warning "iptables command not available to open $spec."
+                print_warning "$(msg IPTABLES_NOT_AVAILABLE "$spec")"
                 return
             fi
 
@@ -434,11 +786,11 @@ open_firewall_port() {
                 if iptables -I INPUT -p "$protocol" --dport "$port" -j ACCEPT >/dev/null 2>&1; then
                     record_firewall_result "$spec" "opened" FIREWALL_PORTS_OPENED
                 else
-                    print_warning "Failed to add iptables rule for $spec."
+                    print_warning "$(msg IPTABLES_FAILED "$spec")"
                     record_firewall_result "$spec" "skipped" FIREWALL_PORTS_SKIPPED
                 fi
             else
-                print_info "Firewall: port $spec already allowed in iptables"
+                print_info "$(msg FIREWALL_PORT_ALREADY_OPEN "$spec" "iptables")"
             fi
 
             if [ "$protocol" != "udp" ] && [ "$protocol" != "tcp" ]; then
@@ -455,7 +807,7 @@ open_firewall_port() {
             ;;
         *)
             record_firewall_result "$spec" "skipped" FIREWALL_PORTS_SKIPPED
-            print_warning "No supported firewall backend detected. Please ensure port $spec is reachable."
+            print_warning "$(msg FIREWALL_NO_BACKEND "$spec")"
             ;;
     esac
 }
@@ -463,10 +815,10 @@ open_firewall_port() {
 finalize_firewall_changes() {
     if [ "$FIREWALL_BACKEND" = "firewalld" ] && [ "$FIREWALL_BACKEND_STATE" = "active" ] && [ "$FIREWALL_RELOAD_REQUIRED" = true ]; then
         if firewall-cmd --reload >/dev/null 2>&1; then
-            print_info "firewalld reloaded to apply permanent firewall changes."
+            print_info "$(msg FIREWALLD_RELOADED)"
             FIREWALL_RELOAD_REQUIRED=false
         else
-            print_warning "Failed to reload firewalld. Please reload it manually to apply changes."
+            print_warning "$(msg FIREWALLD_RELOAD_FAILED)"
         fi
     fi
 }
@@ -490,11 +842,11 @@ get_external_ip() {
 # Function to install Caddy
 install_caddy() {
     if command_exists caddy; then
-        print_info "Caddy is already installed"
+        print_info "$(msg CADDY_INSTALLED)"
         return
     fi
 
-    print_info "Installing Caddy..."
+    print_info "$(msg INSTALLING_CADDY)"
     
     if [ "$OS" = "debian" ] || [ "$OS" = "ubuntu" ]; then
         apt-get update -qq
@@ -515,7 +867,7 @@ install_caddy() {
         fi
     else
         # Fallback: install from official script
-        print_info "Installing Caddy using official script..."
+        print_info "$(msg INSTALLING_CADDY_SCRIPT)"
         curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/setup.rpm.sh' | bash
         if command_exists dnf; then
             dnf install -y caddy
@@ -526,11 +878,11 @@ install_caddy() {
 
     # Verify Caddy installation
     if ! command_exists caddy; then
-        print_error "Caddy installation failed"
+        print_error "$(msg CADDY_INSTALL_FAILED)"
         exit 1
     fi
 
-    print_info "Caddy installed successfully"
+    print_info "$(msg CADDY_INSTALLED_SUCCESS)"
 }
 
 # Function to get application version from container
@@ -561,7 +913,7 @@ configure_caddy() {
 
     if [ "$mode" = "https" ]; then
         if [ -z "$domain_or_host" ]; then
-            print_error "Domain is required for HTTPS configuration"
+            print_error "$(msg DOMAIN_REQUIRED)"
             return 1
         fi
         site_label="$domain_or_host"
@@ -574,19 +926,19 @@ configure_caddy() {
                 site_label="http://${site_label}"
             fi
         fi
-        print_info "Configuring Caddy HTTP reverse proxy for host: $site_label"
+        print_info "$(msg CADDY_CONFIGURING "$site_label")"
     fi
 
-    print_info "Configuring Caddy for target port: $http_port (proxying to $web_prefix)"
+    print_info "$(msg CADDY_TARGET_PORT "$http_port" "$web_prefix")"
 
     # Backup existing Caddyfile if it exists
     if [ -f "$caddyfile" ]; then
-        print_info "Backing up existing Caddyfile to ${caddyfile}.backup"
+        print_info "$(msg CADDY_BACKUP "${caddyfile}.backup")"
         cp "$caddyfile" "${caddyfile}.backup"
     fi
 
     if [ "$mode" = "https" ]; then
-        print_info "Configuring Caddy domain with Let's Encrypt SSL certificate..."
+        print_info "$(msg CADDY_DOMAIN_SETUP)"
         if [ -n "$acme_email" ] && echo "$acme_email" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; then
             cat > "$caddyfile" <<EOF
 {
@@ -676,39 +1028,39 @@ EOF
     
     # Test Caddyfile configuration
     if caddy validate --config "$caddyfile" 1>/dev/null 2>/dev/null; then
-        print_info "Caddyfile configuration is valid"
+        print_info "$(msg CADDY_CONFIG_VALID)"
     else
-        print_warning "Caddyfile validation failed, but continuing..."
+        print_warning "$(msg CADDY_VALIDATION_FAILED)"
     fi
     
     # Reload or restart Caddy
     if command_exists systemctl; then
         if systemctl is-active --quiet caddy 2>/dev/null; then
-            print_info "Reloading Caddy configuration..."
+            print_info "$(msg CADDY_RELOADING)"
             # Use timeout to prevent hanging on reload
             # If reload fails or hangs, fall back to restart
             if timeout 10 systemctl reload caddy 2>/dev/null; then
-                print_info "Caddy configuration reloaded"
+                print_info "$(msg CADDY_RELOADED)"
             else
-                print_warning "Caddy reload failed or timed out, restarting..."
+                print_warning "$(msg CADDY_RELOAD_FAILED)"
                 systemctl restart caddy
             fi
         else
-            print_info "Starting Caddy service..."
+            print_info "$(msg CADDY_STARTING)"
             systemctl enable caddy 2>/dev/null || true
             systemctl start caddy
         fi
     else
         # Fallback: try to start Caddy directly
-        print_warning "systemctl not available, trying to start Caddy directly..."
+        print_warning "$(msg CADDY_NO_SYSTEMCTL)"
         caddy run --config "$caddyfile" &
     fi
     
     # Wait a bit for Caddy to start and, if needed, obtain certificate
     if [ "$mode" = "https" ]; then
-        print_info "Waiting for Caddy to start and obtain SSL certificate (this may take up to 30 seconds)..."
+        print_info "$(msg CADDY_WAIT_SSL)"
     else
-        print_info "Waiting for Caddy to start (this may take up to 30 seconds)..."
+        print_info "$(msg CADDY_WAIT_START)"
     fi
     sleep 5
     
@@ -718,13 +1070,13 @@ EOF
     while [ $attempt -lt $max_attempts ]; do
         if command_exists systemctl; then
             if systemctl is-active --quiet caddy 2>/dev/null; then
-                print_info "Caddy is running"
+                print_info "$(msg CADDY_RUNNING)"
                 return 0
             fi
         else
             # Check if Caddy process is running
             if pgrep -x caddy >/dev/null 2>&1; then
-                print_info "Caddy is running"
+                print_info "$(msg CADDY_RUNNING)"
                 return 0
             fi
         fi
@@ -733,9 +1085,9 @@ EOF
     done
     
     if command_exists systemctl; then
-        print_warning "Caddy service may not be running properly. Check logs with: journalctl -u caddy"
+        print_warning "$(msg CADDY_NOT_RUNNING_SYSTEMCTL)"
     else
-        print_warning "Caddy may not be running properly. Check Caddy logs."
+        print_warning "$(msg CADDY_NOT_RUNNING)"
     fi
     return 1
 }
@@ -744,41 +1096,65 @@ EOF
 main() {
     # Check if we can read from stdin (interactive mode required)
     if ! [ -t 0 ]; then
-        print_error "================================================"
-        print_error "This script requires interactive mode!"
-        print_error "================================================"
+        print_error "$(msg SCRIPT_REQUIRES_INTERACTIVE)"
+        print_error "$(msg SCRIPT_REQUIRES_INTERACTIVE2)"
+        print_error "$(msg SCRIPT_REQUIRES_INTERACTIVE)"
         echo ""
-        print_error "You cannot run this script through a pipe (curl ... | bash)."
+        print_error "$(msg SCRIPT_REQUIRES_INTERACTIVE3)"
         echo ""
-        print_info "Please download and run it directly:"
+        print_info "$(msg SCRIPT_DOWNLOAD_DIRECT)"
         echo ""
         print_info "  curl -Ls https://raw.githubusercontent.com/ClusterM/wg-obfuscator-easy/master/install.sh -o install.sh"
         print_info "  bash install.sh"
         echo ""
-        print_info "Or use wget:"
+        print_info "$(msg SCRIPT_OR_WGET)"
         print_info "  wget https://raw.githubusercontent.com/ClusterM/wg-obfuscator-easy/master/install.sh"
         print_info "  bash install.sh"
         echo ""
         exit 1
     fi
     
-    print_info "================================================"
-    print_info "WireGuard Obfuscator Easy - Installation Script"
-    print_info "================================================"
+    # Language selection (restore from environment if running through sudo)
+    if [ -n "$WG_OBF_LANG" ]; then
+        LANG_CHOICE="$WG_OBF_LANG"
+    else
+        echo ""
+        echo "$(msg SELECT_LANG_TITLE)"
+        echo "  1) $(msg LANG_EN) (default)"
+        echo "  2) $(msg LANG_RU)"
+        echo ""
+        read -p "$(msg SELECT_LANG): " -r lang_choice
+        if [ -z "$lang_choice" ]; then
+            lang_choice=1
+        fi
+        case "$lang_choice" in
+            2)
+                LANG_CHOICE="ru"
+                ;;
+            *)
+                LANG_CHOICE="en"
+                ;;
+        esac
+        echo ""
+    fi
+    
+    print_info "$(msg SCRIPT_TITLE)"
+    print_info "$(msg SCRIPT_TITLE2)"
+    print_info "$(msg SCRIPT_TITLE)"
     echo ""
-    print_info "This script will guide you through the installation process."
-    print_info "You will be asked a few questions to configure your setup."
+    print_info "$(msg SCRIPT_GUIDE)"
+    print_info "$(msg SCRIPT_QUESTIONS)"
     echo ""
     
     # Check if running as root
     if [ "$EUID" -ne 0 ]; then
         if command_exists sudo; then
-            print_warning "This script must be run as root. Re-launching with sudo. You may be prompted for your password."
-            exec sudo bash "$0" "$@"
+            print_warning "$(msg SCRIPT_REQUIRES_ROOT)"
+            exec sudo WG_OBF_LANG="$LANG_CHOICE" bash "$0" "$@"
         else
-            print_error "This script must be run as root"
+            print_error "$(msg SCRIPT_REQUIRES_ROOT2)"
             echo ""
-            print_info "Please run as root (for example, with sudo if available):"
+            print_info "$(msg SCRIPT_RUN_AS_ROOT)"
             print_info "  sudo bash install.sh"
             echo ""
             exit 1
@@ -787,26 +1163,26 @@ main() {
     
     # Detect OS
     detect_os
-    print_info "Detected OS: $OS"
+    print_info "$(msg DETECTED_OS "$OS")"
 
     detect_firewall_backend
     if [ "$FIREWALL_BACKEND" != "none" ]; then
         if [ "$FIREWALL_BACKEND_STATE" = "active" ]; then
-            print_info "Detected firewall manager: $FIREWALL_BACKEND"
+            print_info "$(msg DETECTED_FIREWALL "$FIREWALL_BACKEND")"
         else
-            print_warning "Firewall manager detected ($FIREWALL_BACKEND) but appears inactive."
+            print_warning "$(msg FIREWALL_INACTIVE "$FIREWALL_BACKEND")"
         fi
     else
-        print_info "No supported firewall manager detected."
+        print_info "$(msg NO_FIREWALL)"
     fi
 
-    print_info "Installing required packages... (this may take a while)"
+    print_info "$(msg INSTALLING_PACKAGES)"
 
     if ! command_exists systemctl; then
         # Install systemd if needed
         install_systemd
         if ! command_exists systemctl; then
-            print_error "systemctl is not installed. Please install it and try again."
+            print_error "$(msg SYSTEMCTL_NOT_INSTALLED)"
             exit 1
         fi
     fi
@@ -824,21 +1200,21 @@ main() {
     
     # Verify Docker is running
     if ! docker info >/dev/null 2>&1; then
-        print_error "Docker is installed but not running. Please start Docker and try again."
+        print_error "$(msg DOCKER_NOT_RUNNING)"
         if command_exists systemctl; then
-            print_info "Try: systemctl start docker"
+            print_info "$(msg SYSTEMCTL_TRY)"
         fi
         exit 1
     fi
     
     # Get external IP
-    print_info "Detecting external IP address..."
+    print_info "$(msg DETECTING_IP)"
     EXTERNAL_IP=$(get_external_ip)
     if [ -z "$EXTERNAL_IP" ]; then
-        print_error "Failed to detect external IP address"
+        print_error "$(msg IP_DETECT_FAILED)"
         exit 1
     fi
-    print_info "External IP: $EXTERNAL_IP"
+    print_info "$(msg EXTERNAL_IP "$EXTERNAL_IP")"
 
     # Stop existing container if it exists to free the ports
     if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
@@ -858,7 +1234,7 @@ main() {
         CONFIG_EXISTS=true
         ADMIN_PASSWORD=""
         while true; do
-            read -p "Old configuration found. Do you want to keep old settings? (Y/n): " -r
+            read -p "$(msg OLD_CONFIG_FOUND)" -r
             if [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Yy]$ ]]; then
                 source "$CONFIG_FILE"
                 KEEP_OLD_HOST_CONFIG=true
@@ -898,7 +1274,7 @@ main() {
     
     # Create config directory
     mkdir -p "$CONFIG_DIR"
-    print_info "Config directory: $CONFIG_DIR"
+    print_info "$(msg CONFIG_DIR "$CONFIG_DIR")"
 
     # Remove existing container if it exists to free the ports
     if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
@@ -906,14 +1282,14 @@ main() {
     fi
 
     # Pull Docker image
-    print_info "Pulling Docker image: $IMAGE_NAME..."
+    print_info "$(msg PULLING_IMAGE "$IMAGE_NAME")"
     docker pull "$IMAGE_NAME" 1>/dev/null || {
-        print_error "Failed to pull Docker image. Make sure the image exists and you have internet connection."
+        print_error "$(msg PULL_FAILED)"
         exit 1
     }
 
     # Run Docker container
-    print_info "Starting WireGuard Obfuscator Easy Docker container..."
+    print_info "$(msg STARTING_CONTAINER)"
     docker run -d \
         --name "$CONTAINER_NAME" \
         -v "$CONFIG_DIR:/config" \
@@ -929,12 +1305,12 @@ main() {
         --sysctl net.ipv4.conf.all.src_valid_mark=1 \
         --restart unless-stopped \
         "$IMAGE_NAME" 1>/dev/null || {
-        print_error "Failed to start Docker container"
+        print_error "$(msg CONTAINER_START_FAILED)"
         exit 1
     }
     
     # Wait for container to be ready
-    print_info "Waiting for container to be ready..."
+    print_info "$(msg CONTAINER_WAITING)"
     sleep 5
     
     # Check if container is running
@@ -942,7 +1318,7 @@ main() {
     local wait_time=0
     while [ $wait_time -lt $max_wait ]; do
         if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
-            print_info "Container is running"
+            print_info "$(msg CONTAINER_RUNNING)"
             break
         fi
         sleep 2
@@ -950,12 +1326,12 @@ main() {
     done
     
     if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
-        print_error "Container failed to start. Check logs with: docker logs $CONTAINER_NAME"
+        print_error "$(msg CONTAINER_FAILED "$CONTAINER_NAME")"
         exit 1
     fi
     
     # Wait a bit more for the application to be ready
-    print_info "Waiting for application to be ready..."
+    print_info "$(msg APP_WAITING)"
     sleep 5
     
     # Check if application is responding
@@ -964,29 +1340,29 @@ main() {
     while [ $health_check -lt $max_health_checks ]; do
         if curl -s -f -o /dev/null "http://localhost:$HTTP_PORT$WEB_PREFIX" 2>/dev/null || \
             curl -s -f -o /dev/null "http://127.0.0.1:$HTTP_PORT$WEB_PREFIX" 2>/dev/null; then
-            print_info "Application is responding"
+            print_info "$(msg APP_RESPONDING)"
             break
         fi
         sleep 2
         health_check=$((health_check + 1))
     done
     if [ $health_check -eq $max_health_checks ]; then
-        print_warning "Application may not be fully ready yet. It should be available shortly."
+        print_warning "$(msg APP_NOT_READY)"
     fi
     
     # Get application version from container
-    print_info "Getting application version..."
+    print_info "$(msg GETTING_VERSION)"
     APP_VERSION=$(get_app_version "$CONTAINER_NAME")
     if [ "$APP_VERSION" != "unknown" ]; then
-        print_info "Application version: v$APP_VERSION"
+        print_info "$(msg APP_VERSION "$APP_VERSION")"
     else
-        print_warning "Could not determine application version"
+        print_warning "$(msg VERSION_UNKNOWN)"
         APP_VERSION=""
     fi    
 
     if [ "$KEEP_OLD_HOST_CONFIG" = false ]; then
         while true; do
-            read -p "Do you want to enable HTTPS (recommended)? It requires a domain name, but you can use a free domain name. (y/N): " -r
+            read -p "$(msg ENABLE_HTTPS_PROMPT)" -r
             if [[ "$REPLY" =~ ^[Yy]$ ]]; then
                 ENABLE_HTTPS=true
                 break
@@ -1000,46 +1376,46 @@ main() {
         if [ "$ENABLE_HTTPS" = true ]; then
             # TODO: check reverse DNS for the domain, which should point to the server IP address
             while true; do
-                read -p "Do you need a guide how to obtain a free domain name from DuckDNS? (Y/n/q): " -r
+                read -p "$(msg NEED_GUIDE_DUCKDNS)" -r
                 if [[ "$REPLY" =~ ^[Qq]$ ]]; then
                     ENABLE_HTTPS=false
                     break
                 elif [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Yy]$ ]]; then
                     echo ""
-                    print_info "We'll use DuckDNS to create a free domain name for your server."
-                    print_info "Your server IP address is: $EXTERNAL_IP"
+                    print_info "$(msg DUCKDNS_GUIDE_INTRO)"
+                    print_info "$(msg DUCKDNS_YOUR_IP "$EXTERNAL_IP")"
                     echo ""
-                    print_info "Follow these steps to set up DuckDNS:"
+                    print_info "$(msg DUCKDNS_STEPS)"
                     echo ""
-                    print_info "1. Open your web browser and go to: https://www.duckdns.org/"
+                    print_info "$(msg DUCKDNS_STEP1)"
                     echo ""
-                    print_info "2. Click on 'Sign in with Google' or 'Sign in with GitHub'"
-                    print_info "   (You can use any Google or GitHub account - it's free)"
+                    print_info "$(msg DUCKDNS_STEP2)"
+                    print_info "$(msg DUCKDNS_STEP2_NOTE)"
                     echo ""
-                    print_info "3. After signing in, you'll see a page where you must:"
-                    print_info "   - Enter a new subdomain name (e.g., any name you want, but it must be unique and not already taken)"
-                    print_info "   - Enter your server IP address: $EXTERNAL_IP"
-                    print_info "   - Click 'add domain' or 'update ip'"
+                    print_info "$(msg DUCKDNS_STEP3)"
+                    print_info "$(msg DUCKDNS_STEP3_1)"
+                    print_info "$(msg DUCKDNS_STEP3_2 "$EXTERNAL_IP")"
+                    print_info "$(msg DUCKDNS_STEP3_3)"
                     echo ""
                     # Get DuckDNS subdomain
                     while true; do
-                        print_info "After creating your DuckDNS domain, enter your DuckDNS subdomain name (or enter 'q' to cancel and continue without HTTPS)."
-                        print_info "Example: If your domain is 'myvpn.duckdns.org', enter 'myvpn'."
+                        print_info "$(msg DUCKDNS_ENTER_SUBDOMAIN)"
+                        print_info "$(msg DUCKDNS_EXAMPLE)"
                         echo ""
-                        read -p "DuckDNS subdomain: " -r
+                        read -p "$(msg DUCKDNS_SUBDOMAIN_PROMPT)" -r
                         if [[ "$REPLY" =~ ^[Qq]$ ]]; then
                             ENABLE_HTTPS=false
                             break
                         fi
                         local duckdns_subdomain="$REPLY"
                         if [ -z "$duckdns_subdomain" ]; then
-                            print_error "Subdomain cannot be empty. Please enter your DuckDNS subdomain."
+                            print_error "$(msg SUBDOMAIN_EMPTY)"
                             echo ""
                             continue
                         fi
                         # Basic validation - only alphanumeric and hyphens
                         if ! echo "$duckdns_subdomain" | grep -qE '^[a-zA-Z0-9-]+$'; then
-                            print_error "Invalid subdomain. Use only letters, numbers, and hyphens."
+                            print_error "$(msg SUBDOMAIN_INVALID)"
                             echo ""
                             continue
                         fi
@@ -1049,19 +1425,19 @@ main() {
                     break
                 elif [[ "$REPLY" =~ ^[Nn]$ ]]; then
                     while true; do
-                        read -p "Enter your domain name (or enter 'q' to cancel and continue without HTTPS): " -r
+                        read -p "$(msg ENTER_DOMAIN)" -r
                         if [[ "$REPLY" =~ ^[Qq]$ ]]; then
                             ENABLE_HTTPS=false
                             break
                         fi
                         DOMAIN="$REPLY"
                         if [ -z "$DOMAIN" ]; then
-                            print_error "Domain cannot be empty. Please enter your domain name."
+                            print_error "$(msg DOMAIN_EMPTY)"
                             echo ""
                             continue
                         fi
                         if ! echo "$DOMAIN" | grep -qE '^[a-zA-Z0-9\.-]+\.[a-zA-Z]{2,}$'; then
-                            print_error "Invalid domain name."
+                            print_error "$(msg DOMAIN_INVALID)"
                             echo ""
                             continue
                         fi
@@ -1076,7 +1452,7 @@ main() {
     DNS_RESOLVED=false
     if [ "$ENABLE_HTTPS" = true ]; then
         echo ""
-        print_info "Checking if domain $DOMAIN points to your IP address ($EXTERNAL_IP)..."
+        print_info "$(msg CHECKING_DNS "$DOMAIN" "$EXTERNAL_IP")"
         
         # Wait a bit for DNS to propagate
         sleep 5
@@ -1098,50 +1474,50 @@ main() {
             
             if [ "$resolved_ip" = "$EXTERNAL_IP" ]; then
                 DNS_RESOLVED=true
-                print_info "DNS is correctly configured! Domain $DOMAIN points to $EXTERNAL_IP."
+                print_info "$(msg DNS_CONFIGURED "$DOMAIN" "$EXTERNAL_IP")"
                 break
             fi
             
-            print_info "Waiting for DNS to propagate... (attempt $((dns_check + 1))/$max_dns_checks)"
+            print_info "$(msg DNS_WAITING "$((dns_check + 1))" "$max_dns_checks")"
             sleep 10
             dns_check=$((dns_check + 1))
         done
         
         if [ "$DNS_RESOLVED" = false ]; then
-            print_warning "Could not verify DNS configuration automatically. Please check your DNS settings."
-            print_warning "If you are using DuckDNS, please make sure you have added your domain and your server IP address."
-            print_warning "It's possible that your DNS is not propagated yet. Please wait some time and try again. Some DNS providers take up to 24 hours to propagate."
+            print_warning "$(msg DNS_VERIFY_FAILED)"
+            print_warning "$(msg DNS_DUCKDNS_NOTE)"
+            print_warning "$(msg DNS_PROPAGATION_NOTE)"
             echo ""
-            print_info "Let's continue without HTTPS for now."
+            print_info "$(msg CONTINUE_WITHOUT_HTTPS)"
             ENABLE_HTTPS=false
         elif [ "$KEEP_OLD_HOST_CONFIG" = false ]; then
             echo ""
-            print_info "SSL Certificate Setup"
-            print_info "Let's Encrypt will automatically provide SSL certificates for your domain."
+            print_info "$(msg SSL_SETUP)"
+            print_info "$(msg SSL_LETSENCRYPT)"
             echo ""
-            print_info "You can optionally provide an email address to receive notifications"
-            print_info "when your certificate is about to expire (certificates are renewed automatically)."
+            print_info "$(msg SSL_EMAIL_INFO)"
+            print_info "$(msg SSL_EMAIL_INFO2)"
             echo ""
-            print_info "This email is completely optional - SSL certificates will work without it."
+            print_info "$(msg SSL_EMAIL_OPTIONAL)"
             echo ""
             while true; do
-                read -p "Enter email address for notifications (or press Enter to skip): " -r
+                read -p "$(msg EMAIL_PROMPT)" -r
                 if [ -z "$REPLY" ]; then
                     # Empty email - that's fine
                     ACME_EMAIL=""
-                    print_info "Continuing without email. SSL certificates will still work perfectly."
+                    print_info "$(msg EMAIL_SKIPPED)"
                     break
                 elif echo "$REPLY" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; then
                     # Valid email
                     ACME_EMAIL="$REPLY"
-                    print_info "Email set: $ACME_EMAIL"
-                    print_info "You'll receive notifications about certificate expiration (if any)."
+                    print_info "$(msg EMAIL_SET "$ACME_EMAIL")"
+                    print_info "$(msg EMAIL_NOTIFICATIONS)"
                     break
                 else
                     echo ""
-                    print_error "Invalid email format!"
-                    print_error "Please enter a valid email address (e.g., user@example.com)"
-                    print_error "or press Enter without typing anything to skip."
+                    print_error "$(msg EMAIL_INVALID)"
+                    print_error "$(msg EMAIL_INVALID_FORMAT)"
+                    print_error "$(msg EMAIL_SKIP_NOTE)"
                     echo ""
                 fi
             done
@@ -1157,11 +1533,11 @@ main() {
     # Install and configure Caddy if HTTPS is enabled
     HTTP_PORT_REAL=$HTTP_PORT
     if [ "$ENABLE_HTTPS" = true ]; then
-        print_info "Setting up HTTPS with Caddy..."
+        print_info "$(msg HTTPS_SETUP)"
         
         # Configure Caddy
         if ! configure_caddy "$DOMAIN" "$HTTP_PORT" "$WEB_PREFIX" "https"; then
-            print_warning "HTTPS setup failed. Let's continue without HTTPS."
+            print_warning "$(msg HTTPS_FAILED)"
             systemctl stop caddy
             systemctl disable caddy
             ENABLE_HTTPS=false
@@ -1170,19 +1546,19 @@ main() {
     if [ "$ENABLE_HTTPS" = false ]; then
         # check if the 80 port is in use
         if ! check_port "80"; then
-            print_info "Setting up HTTP reverse proxy with Caddy on port 80..."
+            print_info "$(msg HTTP_PROXY_SETUP)"
             local http_proxy_host
             http_proxy_host="$DOMAIN"
             if [ -z "$http_proxy_host" ]; then
                 http_proxy_host=":80"
             fi
             if ! configure_caddy "$http_proxy_host" "$HTTP_PORT" "$WEB_PREFIX" "http"; then
-                print_warning "Failed to configure HTTP reverse proxy with Caddy. HTTP will remain available on port $HTTP_PORT."
+                print_warning "$(msg HTTP_PROXY_FAILED "$HTTP_PORT")"
                 open_firewall_port "$HTTP_PORT" "tcp"
                 systemctl stop caddy
                 systemctl disable caddy
             else
-                print_info "Caddy HTTP reverse proxy configured successfully."
+                print_info "$(msg HTTP_PROXY_SUCCESS)"
                 HTTP_PORT=80
             fi
         fi
@@ -1192,12 +1568,12 @@ main() {
 
     # Print summary
     echo ""
-    print_info "================================================"
-    print_info "Installation completed successfully!"
+    print_info "$(msg INSTALL_COMPLETE)"
+    print_info "$(msg INSTALL_COMPLETE2)"
     if [ -n "$APP_VERSION" ]; then
-        print_info "Installed version: v$APP_VERSION"
+        print_info "$(msg INSTALLED_VERSION "$APP_VERSION")"
     fi
-    print_info "================================================"
+    print_info "$(msg INSTALL_COMPLETE)"
     echo ""
 
     if [ "$FIREWALL_BACKEND" != "none" ]; then
@@ -1211,59 +1587,59 @@ main() {
         fi
 
         if [ -n "$opened_ports" ]; then
-            print_info "Firewall ($FIREWALL_BACKEND) opened ports: $opened_ports"
+            print_info "$(msg FIREWALL_OPENED_PORTS "$FIREWALL_BACKEND" "$opened_ports")"
         fi
         if [ -n "$skipped_ports" ]; then
-            print_warning "Firewall ports requiring manual configuration: $skipped_ports"
+            print_warning "$(msg FIREWALL_MANUAL_PORTS "$skipped_ports")"
         fi
 
         if [ "$FIREWALL_BACKEND" = "ufw" ] && [ "$FIREWALL_BACKEND_STATE" != "active" ]; then
-            print_warning "UFW rules were not applied automatically because UFW is inactive."
+            print_warning "$(msg UFW_NOT_APPLIED)"
         fi
         if [ "$FIREWALL_BACKEND" = "firewalld" ] && [ "$FIREWALL_BACKEND_STATE" != "active" ]; then
-            print_warning "firewalld rules were not applied automatically because the service is not running."
+            print_warning "$(msg FIREWALLD_NOT_APPLIED)"
         fi
     fi
     echo ""
 
-    print_info "Configuration:"
-    print_info "  Container name: $CONTAINER_NAME"
-    print_info "  WireGuard port: $WIREGUARD_PORT"
-    print_info "  Web prefix: $WEB_PREFIX"
+    print_info "$(msg CONFIGURATION)"
+    print_info "$(msg CONTAINER_NAME "$CONTAINER_NAME")"
+    print_info "$(msg WIREGUARD_PORT "$WIREGUARD_PORT")"
+    print_info "$(msg WEB_PREFIX "$WEB_PREFIX")"
     if [ "$ENABLE_HTTPS" = true ]; then
-        print_info "  HTTPS enabled: true"
+        print_info "$(msg HTTPS_ENABLED "true")"
     else
-        print_info "  HTTPS enabled: false"
+        print_info "$(msg HTTPS_ENABLED "false")"
     fi
     echo ""
 
     if [ "$ENABLE_HTTPS" = true ]; then
-        print_info "HTTP URL: http://$DOMAIN$WEB_PREFIX (not recommended - use HTTPS)"
-        print_info "HTTPS URL: https://$DOMAIN$WEB_PREFIX (using Let's Encrypt certificate)"
+        print_info "$(msg HTTP_URL "http://$DOMAIN$WEB_PREFIX")"
+        print_info "$(msg HTTPS_URL "https://$DOMAIN$WEB_PREFIX")"
     else
         if [ "$HTTP_PORT" = 80 ]; then
-            print_info "HTTP URL: http://$EXTERNAL_IP$WEB_PREFIX"
+            print_info "$(msg HTTP_URL_SIMPLE "http://$EXTERNAL_IP$WEB_PREFIX")"
         else
-            print_info "HTTP URL: http://$EXTERNAL_IP:$HTTP_PORT$WEB_PREFIX"
+            print_info "$(msg HTTP_URL_SIMPLE "http://$EXTERNAL_IP:$HTTP_PORT$WEB_PREFIX")"
         fi
     fi
     echo ""
 
     if [ "$CONFIG_EXISTS" = false ]; then
-        print_info "Login Credentials:"
-        print_info "  Username: admin"
-        print_info "  Password: $ADMIN_PASSWORD"
+        print_info "$(msg LOGIN_CREDENTIALS)"
+        print_info "$(msg USERNAME)"
+        print_info "$(msg PASSWORD "$ADMIN_PASSWORD")"
     else
-        print_info "Login Credentials are the same as the ones you used to install the script."
+        print_info "$(msg LOGIN_SAME)"
     fi
     echo ""
     
     if [ "$ENABLE_HTTPS" = true ]; then
-        print_warning "It can some time for the certificate to be obtained. If you cannot access the web interface, please wait a few minutes and try again."
+        print_warning "$(msg CERT_WAIT)"
     fi
-    print_warning "Save these credentials in a secure location!"
+    print_warning "$(msg SAVE_CREDENTIALS)"
     if [ "$ENABLE_HTTPS" = false ]; then
-        print_warning "HTTPS is not enabled. You can enable it later by running the script again."
+        print_warning "$(msg HTTPS_NOT_ENABLED)"
     fi
     
     # Save configuration to file
