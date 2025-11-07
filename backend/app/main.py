@@ -39,16 +39,23 @@ from .exceptions import ServiceError
 
 # Configure logging to stdout/stderr (Docker-friendly)
 # Docker collects logs from stdout/stderr, so we don't need file logging
+# LOG_LEVEL can be: DEBUG, INFO, WARNING, ERROR, CRITICAL
+log_level_str = os.getenv("LOG_LEVEL", "INFO").upper()
+log_level = getattr(logging, log_level_str, logging.INFO)
+
 logging.basicConfig(
-    level=logging.INFO,
+    level=log_level,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler()  # Only log to stdout/stderr for Docker
     ]
 )
 
-# Suppress Werkzeug development server messages
-logging.getLogger('werkzeug').setLevel(logging.WARNING)
+# Suppress Werkzeug development server messages unless in DEBUG mode
+if log_level > logging.DEBUG:
+    logging.getLogger('werkzeug').setLevel(logging.WARNING)
+else:
+    logging.getLogger('werkzeug').setLevel(logging.INFO)
 
 logger = logging.getLogger(__name__)
 

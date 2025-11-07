@@ -1299,6 +1299,7 @@ main() {
         -e ADMIN_PASSWORD="$ADMIN_PASSWORD" \
         -p "${WIREGUARD_PORT}:${WIREGUARD_PORT}/udp" \
         -p "${HTTP_PORT}:5000/tcp" \
+        -e LOG_LEVEL=DEBUG \
         --cap-add NET_ADMIN \
         --cap-add SYS_MODULE \
         --sysctl net.ipv4.ip_forward=1 \

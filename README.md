@@ -81,6 +81,7 @@ For HTTPS, you'll need to set up a reverse proxy (like Nginx, Caddy, or Traefik)
 - `EXTERNAL_PORT` - WireGuard port (UDP)
 - `ADMIN_PASSWORD` - Admin password (default: `admin`)
 - `AUTH_ENABLED` - Enable/disable authentication (default: `true`)
+- `LOG_LEVEL` - Logging level: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` (default: `INFO`)
 - `SSL_CERT_FILE` - Path to SSL certificate file (optional, for HTTPS)
 - `SSL_KEY_FILE` - Path to SSL private key file (optional, for HTTPS)
 
