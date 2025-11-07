@@ -1160,7 +1160,31 @@ main() {
             exit 1
         fi
     fi
-    
+
+    CONFIG_EXISTS=false
+    KEEP_OLD_HOST_CONFIG=false
+    if [ -f "$CONFIG_FILE" ]; then
+        CONFIG_EXISTS=true
+        ADMIN_PASSWORD=""
+        while true; do
+            read -p "$(msg OLD_CONFIG_FOUND)" -r
+            if [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Yy]$ ]]; then
+                source "$CONFIG_FILE"
+                KEEP_OLD_HOST_CONFIG=true
+                break
+            elif [[ "$REPLY" =~ ^[Nn]$ ]]; then
+                break
+            fi
+        done
+        echo ""
+    else
+        # Generate random values
+        HTTP_PORT=$(generate_port)
+        ADMIN_PASSWORD=$(generate_password)
+        WIREGUARD_PORT=$(generate_port)
+        WEB_PREFIX="/$(generate_prefix)/"
+    fi
+
     # Detect OS
     detect_os
     print_info "$(msg DETECTED_OS "$OS")"
@@ -1228,28 +1252,6 @@ main() {
         fi
     fi
 
-    CONFIG_EXISTS=false
-    KEEP_OLD_HOST_CONFIG=false
-    if [ -f "$CONFIG_FILE" ]; then
-        CONFIG_EXISTS=true
-        ADMIN_PASSWORD=""
-        while true; do
-            read -p "$(msg OLD_CONFIG_FOUND)" -r
-            if [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Yy]$ ]]; then
-                source "$CONFIG_FILE"
-                KEEP_OLD_HOST_CONFIG=true
-                break
-            elif [[ "$REPLY" =~ ^[Nn]$ ]]; then
-                break
-            fi
-        done
-    else
-        # Generate random values
-        HTTP_PORT=$(generate_port)
-        ADMIN_PASSWORD=$(generate_password)
-        WIREGUARD_PORT=$(generate_port)
-        WEB_PREFIX="/$(generate_prefix)/"
-    fi
     # Ensure HTTP port is not in use
     local max_port_attempts=10
     local port_attempt=0
