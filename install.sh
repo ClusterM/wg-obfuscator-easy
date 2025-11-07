@@ -34,7 +34,7 @@ WHITE='\033[1;37m'
 NC='\033[0m' # No Color
 
 # Configuration
-IMAGE_NAME="clustermeerkat/wg-obf-easy:latest"
+IMAGE_NAME="docker.io/clustermeerkat/wg-obf-easy:latest"
 CONTAINER_NAME="wg-obf-easy"
 # Use root's home directory for config (since we run as root)
 CONFIG_DIR="/root/.wg-obf-easy"
