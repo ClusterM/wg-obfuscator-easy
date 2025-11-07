@@ -27,7 +27,7 @@ set -e
 trap 'print_error "Installation failed at line $LINENO. Please check the error messages above."' ERR INT TERM
 
 # Colors for output
-RED='\033[0;31m'
+RED='\033[0;31m'T
 YELLOW='\033[1;33m'
 GREEN='\033[0;32m'
 WHITE='\033[1;37m'
@@ -615,7 +615,6 @@ main() {
     docker run -d \
         --name "$CONTAINER_NAME" \
         -v "$CONFIG_DIR:/config" \
-        -v /etc/timezone:/etc/timezone:ro \
         -e WEB_PREFIX="$WEB_PREFIX" \
         -e EXTERNAL_IP="$EXTERNAL_IP" \
         -e EXTERNAL_PORT="$WIREGUARD_PORT" \
