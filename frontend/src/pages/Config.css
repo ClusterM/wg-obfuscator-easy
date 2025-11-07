@@ -201,8 +201,8 @@
   color: #e74c3c;
 }
 
-/* Modal Styles */
-.modal-overlay {
+/* Modal Styles for Config Page */
+.restart-modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -215,7 +215,7 @@
   z-index: 1000;
 }
 
-.modal-content {
+.restart-modal-content {
   background: white;
   border-radius: 8px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
@@ -225,18 +225,18 @@
   overflow-y: auto;
 }
 
-.modal-header {
+.restart-modal-header {
   padding: 1.5rem;
   border-bottom: 1px solid #eee;
 }
 
-.modal-header h3 {
+.restart-modal-header h3 {
   margin: 0;
   color: #2c3e50;
   font-size: 1.4rem;
 }
 
-.modal-body {
+.restart-modal-body {
   padding: 1.5rem;
   text-align: center;
 }
@@ -289,7 +289,7 @@
   color: #e74c3c;
 }
 
-.modal-footer {
+.restart-modal-footer {
   padding: 1rem 1.5rem;
   border-top: 1px solid #eee;
   display: flex;

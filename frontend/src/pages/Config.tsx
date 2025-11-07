@@ -483,12 +483,12 @@ export default function Config() {
 
       {/* System Restart Modal */}
       {showRestartModal && (
-        <div className="modal-overlay" onClick={() => setShowRestartModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
+        <div className="restart-modal-overlay" onClick={() => setShowRestartModal(false)}>
+          <div className="restart-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="restart-modal-header">
               <h3>{t('config.timezoneRestartModalTitle')}</h3>
             </div>
-            <div className="modal-body">
+            <div className="restart-modal-body">
               {restartStatus === 'waiting' && (
                 <div className="restart-status">
                   <div className="spinner"></div>
@@ -521,7 +521,7 @@ export default function Config() {
               )}
             </div>
             {restartStatus !== 'error' && (
-              <div className="modal-footer">
+              <div className="restart-modal-footer">
                 <button
                   onClick={() => setShowRestartModal(false)}
                   className="btn-secondary"
