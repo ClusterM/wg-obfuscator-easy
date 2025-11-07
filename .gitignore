@@ -1,3 +1,5 @@
 /static
 /frontend/node_modules
 /frontend/dist
+*.pyc
+run.sh

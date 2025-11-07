@@ -81,7 +81,7 @@ def create_app(config_manager, client_manager, wg_manager, obfuscator_manager,
     app.traffic_stats_collector = traffic_stats_collector
     
     # Register blueprints with prefix (API routes must be registered first)
-    from . import auth, config_routes, clients, stats, health
+    from . import auth, config_routes, clients, stats, health, system
     
     # Apply rate limiting to login endpoint before registering blueprint
     # Flask-Limiter works with blueprints when app is passed to Limiter
@@ -90,6 +90,7 @@ def create_app(config_manager, client_manager, wg_manager, obfuscator_manager,
     app.register_blueprint(auth.bp, url_prefix=web_prefix + '/api/auth')
     app.register_blueprint(config_routes.bp, url_prefix=web_prefix + '/api/config')
     app.register_blueprint(clients.bp, url_prefix=web_prefix + '/api/clients')
+    app.register_blueprint(system.bp, url_prefix=web_prefix + '/api/system')
     app.register_blueprint(stats.bp, url_prefix=web_prefix + '/api')
     app.register_blueprint(health.bp, url_prefix=web_prefix)
     

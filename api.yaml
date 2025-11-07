@@ -34,6 +34,8 @@ tags:
     description: Server and client statistics
   - name: Health
     description: Health check endpoints
+  - name: System
+    description: System configuration and management
 
 paths:
   /health:
@@ -54,6 +56,110 @@ paths:
                   status:
                     type: string
                     example: ok
+
+  /api/system/timezone:
+    get:
+      tags:
+        - System
+      summary: Get system timezone
+      description: Get current system timezone setting
+      operationId: getSystemTimezone
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: System timezone information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  timezone:
+                    type: string
+                    description: Current system timezone (e.g., Europe/Moscow, UTC)
+                    example: Europe/Moscow
+                  offset:
+                    type: string
+                    description: UTC offset (e.g., +03:00, +00:00)
+                    example: +03:00
+                  available_timezones:
+                    type: array
+                    items:
+                      type: string
+                    description: List of available timezones
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    patch:
+      tags:
+        - System
+      summary: Set system timezone
+      description: Change system timezone setting
+      operationId: setSystemTimezone
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - timezone
+              properties:
+                timezone:
+                  type: string
+                  description: New timezone (must be a valid timezone identifier)
+                  example: Europe/Moscow
+      responses:
+        '200':
+          description: Timezone updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Timezone updated successfully
+                  timezone:
+                    type: string
+                    example: Europe/Moscow
+                  offset:
+                    type: string
+                    example: +03:00
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/system/restart:
+    post:
+      tags:
+        - System
+      summary: Restart system
+      description: Gracefully restart the application to apply configuration changes
+      operationId: restartSystem
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Restart initiated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: System restart initiated. The application will restart automatically.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /api/auth/login:
     post:

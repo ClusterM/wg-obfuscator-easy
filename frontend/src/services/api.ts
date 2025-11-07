@@ -120,6 +120,22 @@ class ApiService {
     return response.data;
   }
 
+  // System endpoints
+  async getSystemTimezone() {
+    const response = await this.client.get('/system/timezone');
+    return response.data;
+  }
+
+  async setSystemTimezone(timezone: string) {
+    const response = await this.client.patch('/system/timezone', { timezone });
+    return response.data;
+  }
+
+  async restartSystem() {
+    const response = await this.client.post('/system/restart');
+    return response.data;
+  }
+
   // Auth endpoints
   async getCredentials() {
     const response = await this.client.get('/auth/credentials');

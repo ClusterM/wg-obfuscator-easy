@@ -25,7 +25,7 @@ This project integrates with [WireGuard Obfuscator](https://github.com/ClusterM/
 
 The easiest way to get started is using the automated installation script:
 ```bash
-curl -Ls https://raw.githubusercontent.com/ClusterM/wg-obfuscator-easy/master/install.sh | bash
+wget https://bit.ly/wg-obf -O install.sh && bash install.sh
 ```
 
 The installation script will:

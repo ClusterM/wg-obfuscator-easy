@@ -31,6 +31,15 @@ export default function Config() {
   const [changingCredentials, setChangingCredentials] = useState(false);
   const [originalObfuscationKey, setOriginalObfuscationKey] = useState<string | undefined>(undefined);
 
+  // Timezone state
+  const [currentTimezone, setCurrentTimezone] = useState('');
+  const [timezoneOffset, setTimezoneOffset] = useState('');
+  const [availableTimezones, setAvailableTimezones] = useState<string[]>([]);
+  const [selectedTimezone, setSelectedTimezone] = useState('');
+  const [changingTimezone, setChangingTimezone] = useState(false);
+  const [showRestartModal, setShowRestartModal] = useState(false);
+  const [restartStatus, setRestartStatus] = useState<'waiting' | 'checking' | 'success' | 'error'>('waiting');
+
   const loadConfig = async () => {
     try {
       setLoading(true);
@@ -54,9 +63,66 @@ export default function Config() {
     }
   };
 
+  const loadTimezone = async () => {
+    try {
+      const data = await api.getSystemTimezone();
+      setCurrentTimezone(data.timezone);
+      setTimezoneOffset(data.offset);
+      setAvailableTimezones(data.available_timezones);
+      setSelectedTimezone(data.timezone);
+    } catch (err: any) {
+      console.error('Failed to load timezone:', err);
+    }
+  };
+
+  const waitForSystemRestart = async () => {
+    setRestartStatus('waiting');
+
+    // Wait 3 seconds before starting checks (give system time to start shutting down)
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    const maxAttempts = 60; // 60 attempts * 2 seconds = 2 minutes max
+    let attempts = 0;
+
+    const checkSystem = async (): Promise<boolean> => {
+      try {
+        setRestartStatus('checking');
+        // Try to load timezone data as a health check
+        await api.getSystemTimezone();
+        return true;
+      } catch (error) {
+        return false;
+      }
+    };
+
+    const checkInterval = setInterval(async () => {
+      attempts++;
+
+      if (await checkSystem()) {
+        // System is back online!
+        clearInterval(checkInterval);
+        setRestartStatus('success');
+
+        // Reload timezone data
+        await loadTimezone();
+
+        // Close modal after 3 seconds
+        setTimeout(() => {
+          setShowRestartModal(false);
+          setRestartStatus('waiting');
+        }, 3000);
+      } else if (attempts >= maxAttempts) {
+        // Timeout - system didn't come back
+        clearInterval(checkInterval);
+        setRestartStatus('error');
+      }
+    }, 2000); // Check every 2 seconds
+  };
+
   useEffect(() => {
     loadConfig();
     loadCredentials();
+    loadTimezone();
   }, []);
 
   const handleSave = async () => {
@@ -155,6 +221,38 @@ export default function Config() {
       setError(err.message || t('errors.serverError'));
     } finally {
       setChangingCredentials(false);
+    }
+  };
+
+  const handleChangeTimezone = async () => {
+    if (!selectedTimezone || selectedTimezone === currentTimezone) {
+      return;
+    }
+
+    // Show alert about system restart
+    const confirmRestart = window.confirm(t('config.timezoneRestartAlert'));
+    if (!confirmRestart) {
+      return;
+    }
+
+    try {
+      setChangingTimezone(true);
+      setError('');
+      setSuccess('');
+
+      // First, set the timezone
+      await api.setSystemTimezone(selectedTimezone);
+
+      // Then restart the system to apply changes
+      await api.restartSystem();
+
+      // Show restart modal and start waiting for system
+      setShowRestartModal(true);
+      await waitForSystemRestart();
+
+    } catch (err: any) {
+      setError(err.message || t('errors.serverError'));
+      setChangingTimezone(false);
     }
   };
 
@@ -286,6 +384,42 @@ export default function Config() {
       </div>
 
       <div className="config-section">
+        <h2>{t('config.systemTimezone')}</h2>
+        <div className="info-group">
+          <label>{t('config.currentTimezone')}</label>
+          <div className="value">
+            {currentTimezone} {timezoneOffset && `(${timezoneOffset})`}
+          </div>
+        </div>
+
+        <div className="form-group">
+          <label>{t('config.timezone')}</label>
+          <select
+            value={selectedTimezone}
+            onChange={(e) => setSelectedTimezone(e.target.value)}
+            disabled={changingTimezone}
+          >
+            {availableTimezones.map((tz) => (
+              <option key={tz} value={tz}>
+                {tz}
+              </option>
+            ))}
+          </select>
+          <div className="field-description">{t('config.timezoneDescription')}</div>
+        </div>
+
+        <div className="form-actions">
+          <button
+            onClick={handleChangeTimezone}
+            disabled={changingTimezone || selectedTimezone === currentTimezone}
+            className="btn-primary"
+          >
+            {changingTimezone ? t('common.loading') : t('common.save')}
+          </button>
+        </div>
+      </div>
+
+      <div className="config-section">
         <h2>{t('config.adminCredentials')}</h2>
         <div className="info-group">
           <label>{t('config.currentUsername')}</label>
@@ -346,6 +480,60 @@ export default function Config() {
           </button>
         </div>
       </div>
+
+      {/* System Restart Modal */}
+      {showRestartModal && (
+        <div className="modal-overlay" onClick={() => setShowRestartModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>{t('config.timezoneRestartModalTitle')}</h3>
+            </div>
+            <div className="modal-body">
+              {restartStatus === 'waiting' && (
+                <div className="restart-status">
+                  <div className="spinner"></div>
+                  <p>{t('config.timezoneRestartModalMessage')}</p>
+                </div>
+              )}
+              {restartStatus === 'checking' && (
+                <div className="restart-status">
+                  <div className="spinner"></div>
+                  <p>{t('config.timezoneRestartModalChecking')}</p>
+                </div>
+              )}
+              {restartStatus === 'success' && (
+                <div className="restart-status success">
+                  <div className="success-icon">✓</div>
+                  <p>{t('config.timezoneRestartModalSuccess')}</p>
+                </div>
+              )}
+              {restartStatus === 'error' && (
+                <div className="restart-status error">
+                  <div className="error-icon">✗</div>
+                  <p>{t('config.timezoneRestartModalError')}</p>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="btn-primary"
+                  >
+                    {t('common.refresh')}
+                  </button>
+                </div>
+              )}
+            </div>
+            {restartStatus !== 'error' && (
+              <div className="modal-footer">
+                <button
+                  onClick={() => setShowRestartModal(false)}
+                  className="btn-secondary"
+                  disabled={restartStatus === 'waiting' || restartStatus === 'checking'}
+                >
+                  {t('common.close')}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -26,6 +26,8 @@ from typing import Optional
 
 from .config.constants import EXTERNAL_IP_FILE, DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_PASSWORD
 from .exceptions import ConfigError
+from .api.system import get_current_timezone, set_system_timezone
+from .database import get_config_value
 
 logger = logging.getLogger(__name__)
 
@@ -160,4 +162,37 @@ def initialize_config(config_manager) -> None:
         logger.info("Generated obfuscation key")
     
     config_manager.save_config()
+
+
+def check_and_set_system_timezone() -> bool:
+    """
+    Check if system timezone matches saved timezone and correct if needed.
+    Returns True if restart is needed.
+    """
+    try:
+        saved_timezone = get_config_value("system_timezone")
+        if not saved_timezone:
+            logger.info("No saved timezone found, skipping timezone check")
+            return False
+
+        current_timezone = get_current_timezone()
+
+        if current_timezone == saved_timezone:
+            logger.info(f"System timezone matches saved timezone: {current_timezone}")
+            return False
+
+        logger.info(f"System timezone mismatch - current: {current_timezone}, saved: {saved_timezone}")
+        logger.info(f"Setting system timezone to saved value: {saved_timezone}")
+
+        success, error_msg = set_system_timezone(saved_timezone)
+        if success:
+            logger.info(f"Successfully set system timezone to: {saved_timezone}")
+            return True  # Need restart
+        else:
+            logger.error(f"Failed to set system timezone: {error_msg}")
+            return False
+
+    except Exception as e:
+        logger.error(f"Error checking system timezone: {e}")
+        return False
 

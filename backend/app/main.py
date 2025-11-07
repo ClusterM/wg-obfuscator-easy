@@ -34,7 +34,7 @@ from .clients import ClientManager
 from .api import create_app
 from .services import ServiceManager
 from .traffic_stats import TrafficStatsCollector
-from .utils import get_external_ip, get_external_port, initialize_config
+from .utils import get_external_ip, get_external_port, initialize_config, check_and_set_system_timezone
 from .exceptions import ServiceError
 
 # Configure logging to stdout/stderr (Docker-friendly)
@@ -96,6 +96,16 @@ def main():
     except Exception as e:
         logger.error(f"Failed to initialize configuration: {e}")
         return 1
+
+    # Check and set system timezone if needed
+    try:
+        if check_and_set_system_timezone():
+            logger.info("System timezone was corrected. Application will restart...")
+            # Exit gracefully - Docker will restart the container
+            return 0
+    except Exception as e:
+        logger.error(f"Failed to check system timezone: {e}")
+        # Continue with application startup despite timezone check failure
     
     # Initialize WireGuard and Obfuscator managers
     config = config_manager.main
