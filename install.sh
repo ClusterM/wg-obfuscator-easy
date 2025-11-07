@@ -39,6 +39,11 @@ CONTAINER_NAME="wg-obf-easy"
 # Use root's home directory for config (since we run as root)
 CONFIG_DIR="/root/.wg-obf-easy"
 CONFIG_FILE="$CONFIG_DIR/install_config.json"
+FIREWALL_BACKEND="none"
+FIREWALL_BACKEND_STATE="unknown"
+FIREWALL_RELOAD_REQUIRED=false
+declare -a FIREWALL_PORTS_OPENED=()
+declare -a FIREWALL_PORTS_SKIPPED=()
 
 # Function to print colored messages
 print_info() {
@@ -141,6 +146,12 @@ install_docker() {
         exit 1
     fi
 
+    # Create /etc/containers/nodocker if podman is installed
+    if command_exists podman; then
+        mkdir -p /etc/containers
+        touch /etc/containers/nodocker
+    fi
+
     # Verify Docker installation
     if ! command_exists docker; then
         print_error "Docker installation failed"
@@ -186,6 +197,160 @@ check_port() {
         else
             # If we can't check, assume it's available
             return 1
+        fi
+    fi
+}
+
+detect_firewall_backend() {
+    FIREWALL_BACKEND="none"
+    FIREWALL_BACKEND_STATE="unknown"
+
+    if command_exists firewall-cmd; then
+        FIREWALL_BACKEND="firewalld"
+        if firewall-cmd --state >/dev/null 2>&1; then
+            FIREWALL_BACKEND_STATE="active"
+        else
+            FIREWALL_BACKEND_STATE="inactive"
+        fi
+        return
+    fi
+
+    if command_exists ufw; then
+        FIREWALL_BACKEND="ufw"
+        if ufw status 2>/dev/null | head -n1 | grep -qi "active"; then
+            FIREWALL_BACKEND_STATE="active"
+        else
+            FIREWALL_BACKEND_STATE="inactive"
+        fi
+        return
+    fi
+
+    if command_exists iptables; then
+        FIREWALL_BACKEND="iptables"
+        FIREWALL_BACKEND_STATE="active"
+        return
+    fi
+}
+
+record_firewall_result() {
+    local spec=$1
+    local outcome=$2
+    local -n target_array=$3
+
+    for existing in "${target_array[@]}"; do
+        if [ "$existing" = "$spec" ]; then
+            return
+        fi
+    done
+
+    target_array+=("$spec")
+    if [ "$outcome" = "opened" ]; then
+        print_info "Firewall: port $spec opened"
+    fi
+}
+
+open_firewall_port() {
+    local port=$1
+    local protocol=${2:-tcp}
+    local spec="${port}/${protocol}"
+
+    case "$FIREWALL_BACKEND" in
+        firewalld)
+            if [ "$FIREWALL_BACKEND_STATE" != "active" ]; then
+                print_warning "firewalld detected but not running. Skipping automatic opening of $spec."
+                record_firewall_result "$spec" "skipped" FIREWALL_PORTS_SKIPPED
+                return
+            fi
+
+            local runtime_added=false
+            local permanent_added=false
+
+            if ! firewall-cmd --query-port="$spec" >/dev/null 2>&1; then
+                if firewall-cmd --add-port="$spec" >/dev/null 2>&1; then
+                    runtime_added=true
+                else
+                    print_warning "Failed to open $spec in firewalld runtime configuration."
+                fi
+            fi
+
+            if ! firewall-cmd --permanent --query-port="$spec" >/dev/null 2>&1; then
+                if firewall-cmd --permanent --add-port="$spec" >/dev/null 2>&1; then
+                    permanent_added=true
+                    FIREWALL_RELOAD_REQUIRED=true
+                else
+                    print_warning "Failed to add $spec to firewalld permanent configuration."
+                fi
+            fi
+
+            if [ "$runtime_added" = true ] || [ "$permanent_added" = true ]; then
+                record_firewall_result "$spec" "opened" FIREWALL_PORTS_OPENED
+            else
+                print_info "Firewall: port $spec already open in firewalld"
+            fi
+            ;;
+        ufw)
+            local status_line
+            status_line=$(ufw status 2>/dev/null | head -n1 || echo "")
+            if echo "$status_line" | grep -qi "inactive"; then
+                print_warning "UFW detected but inactive. Port $spec was not modified."
+                record_firewall_result "$spec" "skipped" FIREWALL_PORTS_SKIPPED
+                return
+            fi
+
+            if ufw status numbered 2>/dev/null | grep -qw "$spec"; then
+                print_info "Firewall: port $spec already allowed in UFW"
+                return
+            fi
+
+            if ufw allow "$spec" >/dev/null 2>&1; then
+                record_firewall_result "$spec" "opened" FIREWALL_PORTS_OPENED
+            else
+                print_warning "Failed to allow $spec via UFW."
+                record_firewall_result "$spec" "skipped" FIREWALL_PORTS_SKIPPED
+            fi
+            ;;
+        iptables)
+            if ! command_exists iptables; then
+                record_firewall_result "$spec" "skipped" FIREWALL_PORTS_SKIPPED
+                print_warning "iptables command not available to open $spec."
+                return
+            fi
+
+            if ! iptables -C INPUT -p "$protocol" --dport "$port" -j ACCEPT >/dev/null 2>&1; then
+                if iptables -I INPUT -p "$protocol" --dport "$port" -j ACCEPT >/dev/null 2>&1; then
+                    record_firewall_result "$spec" "opened" FIREWALL_PORTS_OPENED
+                else
+                    print_warning "Failed to add iptables rule for $spec."
+                    record_firewall_result "$spec" "skipped" FIREWALL_PORTS_SKIPPED
+                fi
+            else
+                print_info "Firewall: port $spec already allowed in iptables"
+            fi
+
+            if [ "$protocol" != "udp" ] && [ "$protocol" != "tcp" ]; then
+                return
+            fi
+
+            if command_exists ip6tables; then
+                if ! ip6tables -C INPUT -p "$protocol" --dport "$port" -j ACCEPT >/dev/null 2>&1; then
+                    ip6tables -I INPUT -p "$protocol" --dport "$port" -j ACCEPT >/dev/null 2>&1 || true
+                fi
+            fi
+            ;;
+        *)
+            record_firewall_result "$spec" "skipped" FIREWALL_PORTS_SKIPPED
+            print_warning "No supported firewall backend detected. Please ensure port $spec is reachable."
+            ;;
+    esac
+}
+
+finalize_firewall_changes() {
+    if [ "$FIREWALL_BACKEND" = "firewalld" ] && [ "$FIREWALL_BACKEND_STATE" = "active" ] && [ "$FIREWALL_RELOAD_REQUIRED" = true ]; then
+        if firewall-cmd --reload >/dev/null 2>&1; then
+            print_info "firewalld reloaded to apply permanent firewall changes."
+            FIREWALL_RELOAD_REQUIRED=false
+        else
+            print_warning "Failed to reload firewalld. Please reload it manually to apply changes."
         fi
     fi
 }
@@ -300,7 +465,7 @@ configure_caddy() {
 
     # Backup existing Caddyfile if it exists
     if [ -f "$caddyfile" ]; then
-        print_warning "Backing up existing Caddyfile to ${caddyfile}.backup"
+        print_info "Backing up existing Caddyfile to ${caddyfile}.backup"
         cp "$caddyfile" "${caddyfile}.backup"
     fi
 
@@ -507,6 +672,17 @@ main() {
     # Detect OS
     detect_os
     print_info "Detected OS: $OS"
+
+    detect_firewall_backend
+    if [ "$FIREWALL_BACKEND" != "none" ]; then
+        if [ "$FIREWALL_BACKEND_STATE" = "active" ]; then
+            print_info "Detected firewall manager: $FIREWALL_BACKEND"
+        else
+            print_warning "Firewall manager detected ($FIREWALL_BACKEND) but appears inactive."
+        fi
+    else
+        print_info "No supported firewall manager detected."
+    fi
 
     print_info "Installing required packages... (this may take a while)"
 
@@ -844,7 +1020,12 @@ main() {
             echo ""
         fi
     fi
-    
+
+    # Open firewall ports
+    open_firewall_port "$WIREGUARD_PORT" "udp"
+    open_firewall_port "80" "tcp"
+    open_firewall_port "443" "tcp"
+
     # Install and configure Caddy if HTTPS is enabled
     HTTP_PORT_REAL=$HTTP_PORT
     if [ "$ENABLE_HTTPS" = true ]; then
@@ -869,6 +1050,7 @@ main() {
             fi
             if ! configure_caddy "$http_proxy_host" "$HTTP_PORT" "$WEB_PREFIX" "http"; then
                 print_warning "Failed to configure HTTP reverse proxy with Caddy. HTTP will remain available on port $HTTP_PORT."
+                open_firewall_port "$HTTP_PORT" "tcp"
                 systemctl stop caddy
                 systemctl disable caddy
             else
@@ -877,6 +1059,8 @@ main() {
             fi
         fi
     fi
+
+    finalize_firewall_changes
 
     # Print summary
     echo ""
@@ -926,6 +1110,33 @@ main() {
     print_warning "Save these credentials in a secure location!"
     if [ "$ENABLE_HTTPS" = false ]; then
         print_warning "HTTPS is not enabled. You can enable it later by running the script again."
+    fi
+
+    if [ "$FIREWALL_BACKEND" != "none" ]; then
+        local opened_ports=""
+        local skipped_ports=""
+        if [ ${#FIREWALL_PORTS_OPENED[@]} -gt 0 ]; then
+            opened_ports=$(printf "%s\n" "${FIREWALL_PORTS_OPENED[@]}" | sort -u | tr '\n' ' ' | sed 's/ $//')
+        fi
+        if [ ${#FIREWALL_PORTS_SKIPPED[@]} -gt 0 ]; then
+            skipped_ports=$(printf "%s\n" "${FIREWALL_PORTS_SKIPPED[@]}" | sort -u | tr '\n' ' ' | sed 's/ $//')
+        fi
+
+        if [ -n "$opened_ports" ]; then
+            print_info "Firewall ($FIREWALL_BACKEND) opened ports: $opened_ports"
+        fi
+        if [ -n "$skipped_ports" ]; then
+            print_warning "Firewall ports requiring manual configuration: $skipped_ports"
+        fi
+
+        if [ "$FIREWALL_BACKEND" = "ufw" ] && [ "$FIREWALL_BACKEND_STATE" != "active" ]; then
+            print_warning "UFW rules were not applied automatically because UFW is inactive."
+        fi
+        if [ "$FIREWALL_BACKEND" = "firewalld" ] && [ "$FIREWALL_BACKEND_STATE" != "active" ]; then
+            print_warning "firewalld rules were not applied automatically because the service is not running."
+        fi
+    else
+        print_warning "No firewall manager detected. Ensure that your hosting provider or external firewall allows incoming connections."
     fi
     
     # Save configuration to file
