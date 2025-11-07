@@ -200,11 +200,18 @@ def set_config_value(key: str, value: Any) -> None:
 
 def get_grafana_token() -> Optional[str]:
     """Get Grafana token from database"""
-    return get_config_value("grafana_token")
+    token = get_config_value("grafana_token")
+    if token:
+        # Ensure token is clean (strip whitespace and remove any newlines/spaces)
+        token = str(token).strip().replace('\n', '').replace('\r', '').replace(' ', '')
+        return token if token else None
+    return None
 
 
 def set_grafana_token(token: str) -> None:
     """Set Grafana token in database"""
+    # Strip whitespace and ensure token is clean
+    token = token.strip().replace('\n', '').replace('\r', '').replace(' ', '')
     set_config_value("grafana_token", token)
 
 

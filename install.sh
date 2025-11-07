@@ -1565,7 +1565,6 @@ main() {
         print_info "$(msg INSTALLED_VERSION "$APP_VERSION")"
     fi
     print_info "$(msg INSTALL_COMPLETE)"
-    echo ""
 
     if [ "$FIREWALL_BACKEND" != "none" ]; then
         local opened_ports=""

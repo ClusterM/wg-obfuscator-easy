@@ -80,6 +80,18 @@ export default function Config() {
     }
   };
 
+  const loadGrafanaToken = async () => {
+    try {
+      const data = await api.getGrafanaToken();
+      if (data.token) {
+        setGrafanaToken(data.token);
+        setShowGrafanaInstructions(true);
+      }
+    } catch (err: any) {
+      console.error('Failed to load Grafana token:', err);
+    }
+  };
+
   const waitForSystemRestart = async () => {
     setRestartStatus('waiting');
 
@@ -130,6 +142,7 @@ export default function Config() {
     loadConfig();
     loadCredentials();
     loadTimezone();
+    loadGrafanaToken();
   }, []);
 
   const handleSave = async () => {
@@ -236,7 +249,7 @@ export default function Config() {
       setGeneratingGrafanaToken(true);
       setError('');
       setSuccess('');
-      const data = await api.getGrafanaToken();
+      const data = await api.generateGrafanaToken();
       setGrafanaToken(data.token);
       setShowGrafanaInstructions(true);
       setSuccess(t('config.grafanaTokenGenerated'));
@@ -270,6 +283,16 @@ export default function Config() {
     try {
       await navigator.clipboard.writeText(grafanaToken);
       setSuccess(t('config.tokenCopied'));
+      setTimeout(() => setSuccess(''), 2000);
+    } catch (err) {
+      setError(t('common.copyFailed'));
+    }
+  };
+
+  const handleCopyUrl = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setSuccess(t('common.copied'));
       setTimeout(() => setSuccess(''), 2000);
     } catch (err) {
       setError(t('common.copyFailed'));
@@ -462,30 +485,63 @@ export default function Config() {
               </div>
             </div>
 
-            {showGrafanaInstructions && (
-              <div className="grafana-instructions">
-                <h3>{t('config.grafanaTokenInstructions')}</h3>
-                <div className="instructions-content">
-                  <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: '0.9rem', lineHeight: '1.6' }}>
-                    {t('config.grafanaTokenInstructionsText', {
-                      url: `${window.location.origin}${(window as any).__WEB_PREFIX__ || ''}/api/grafana`
-                    })}
-                  </pre>
-                </div>
-              </div>
-            )}
+            {showGrafanaInstructions && (() => {
+              const baseUrl = `${window.location.origin}${(window as any).__WEB_PREFIX__ || ''}/api/grafana`;
+              const endpoints = [
+                { url: `${baseUrl}/clients`, label: t('config.grafanaEndpointClients') },
+                { url: `${baseUrl}/status`, label: t('config.grafanaEndpointStatus') },
+                { url: `${baseUrl}/clients/{username}/traffic`, label: t('config.grafanaEndpointTraffic') },
+                { url: `${baseUrl}/clients/{username}/traffic-bytes`, label: t('config.grafanaEndpointTrafficBytes') },
+              ];
 
-            <div className="form-actions">
+              return (
+                <div className="grafana-instructions">
+                  <h3>{t('config.grafanaTokenInstructions')}</h3>
+                  <div className="instructions-content">
+                    <ol style={{ margin: '0 0 1rem 0', paddingLeft: '1.5rem', lineHeight: '1.8' }}>
+                      <li>{t('config.grafanaTokenInstructionsStep1')}</li>
+                      <li>{t('config.grafanaTokenInstructionsStep2')}</li>
+                      <li>
+                        {t('config.grafanaTokenInstructionsStep3')}
+                        <ul style={{ marginTop: '0.5rem', marginBottom: '0.5rem' }}>
+                          {endpoints.map((endpoint, index) => (
+                            <li key={index} style={{ marginBottom: '0.5rem' }}>
+                              <div className="url-copy-container">
+                                <span className="url-label">{endpoint.label}:</span>
+                                <code className="url-code">{endpoint.url}</code>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyUrl(endpoint.url)}
+                                  className="btn-copy-url"
+                                  title={t('common.copy')}
+                                >
+                                  {t('common.copy')}
+                                </button>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </li>
+                      <li>{t('config.grafanaTokenInstructionsStep4')}</li>
+                      <li>{t('config.grafanaTokenInstructionsStep5')}</li>
+                      <li>{t('config.grafanaTokenInstructionsStep6')}</li>
+                    </ol>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className="form-actions form-actions-space-between">
               <button
                 onClick={handleGenerateGrafanaToken}
                 disabled={generatingGrafanaToken}
-                className="btn-primary"
+                className="btn-warning"
               >
                 {generatingGrafanaToken ? t('common.loading') : t('config.generateGrafanaToken')}
               </button>
               <button
                 onClick={handleDeleteGrafanaToken}
-                className="btn-warning"
+                className="btn-danger"
               >
                 {t('config.deleteGrafanaToken')}
               </button>
@@ -496,7 +552,7 @@ export default function Config() {
             <button
               onClick={handleGenerateGrafanaToken}
               disabled={generatingGrafanaToken}
-              className="btn-primary"
+              className="btn-warning"
             >
               {generatingGrafanaToken ? t('common.loading') : t('config.generateGrafanaToken')}
             </button>

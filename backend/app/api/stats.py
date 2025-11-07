@@ -67,18 +67,36 @@ def require_auth_or_grafana(f):
         if not auth_header or not auth_header.startswith('Bearer '):
             return jsonify({"error": "Missing or invalid authorization header"}), 401
         
-        token = auth_header.split(' ')[1]
+        # Extract token more safely - handle cases where token might have spaces or newlines
+        try:
+            # Remove 'Bearer ' prefix and strip whitespace
+            token = auth_header[7:].strip()
+            # Remove any newlines or carriage returns that might have been added
+            token = token.replace('\n', '').replace('\r', '').replace(' ', '')
+            
+            # Log token length for debugging (but not the token itself for security)
+            logger.debug(f"Received token, length: {len(token)}")
+        except (IndexError, AttributeError) as e:
+            logger.error(f"Error parsing authorization header: {e}")
+            return jsonify({"error": "Invalid authorization header format"}), 401
         
         # Check Grafana token first
         grafana_token = get_grafana_token()
-        if grafana_token and token == grafana_token:
-            return f(*args, **kwargs)
+        if grafana_token:
+            # Normalize both tokens for comparison
+            grafana_token_clean = grafana_token.strip().replace('\n', '').replace('\r', '').replace(' ', '')
+            token_clean = token.strip().replace('\n', '').replace('\r', '').replace(' ', '')
+            if token_clean == grafana_token_clean:
+                logger.debug("Grafana token authentication successful")
+                return f(*args, **kwargs)
         
         # Check JWT token
         token_manager = current_app.token_manager
         if token_manager and token_manager.is_valid(token):
+            logger.debug("JWT token authentication successful")
             return f(*args, **kwargs)
         
+        logger.warning(f"Authentication failed for token (length: {len(token)})")
         return jsonify({"error": "Invalid or expired token"}), 401
     return decorated_function
 
@@ -646,6 +664,33 @@ def get_grafana_status():
 @require_auth
 def get_grafana_token_endpoint():
     """
+    Get current Grafana token.
+    Returns existing token if it exists, otherwise returns null.
+    """
+    try:
+        from ..database import get_grafana_token
+        
+        token = get_grafana_token()
+        
+        if token:
+            logger.info("Retrieved existing Grafana token")
+            return jsonify({
+                "token": token
+            })
+        else:
+            logger.info("No Grafana token found")
+            return jsonify({
+                "token": None
+            })
+    except Exception as e:
+        logger.error(f"Error getting Grafana token: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@bp.route('/grafana/token', methods=['POST'])
+@require_auth
+def generate_grafana_token_endpoint():
+    """
     Generate new Grafana token for API access.
     Only one token can exist at a time. When generating a new token, the old one is automatically replaced.
     """
@@ -653,7 +698,6 @@ def get_grafana_token_endpoint():
         import secrets
         from ..database import set_grafana_token
         
-        # Always generate a new token (old one is automatically replaced by set_grafana_token)
         # Generate random token (32 bytes = 64 hex characters)
         token = secrets.token_hex(32)
         set_grafana_token(token)

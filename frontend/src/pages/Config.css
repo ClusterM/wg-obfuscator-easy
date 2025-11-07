@@ -131,6 +131,13 @@
   margin-top: 2rem;
 }
 
+.form-actions-space-between {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
 .btn-primary, .btn-warning, .btn-secondary {
   padding: 0.75rem 1.5rem;
   border: none;
@@ -171,6 +178,15 @@
 
 .btn-warning:hover {
   background-color: #e67e22;
+}
+
+.btn-danger {
+  background-color: #e74c3c;
+  color: white;
+}
+
+.btn-danger:hover {
+  background-color: #c0392b;
 }
 
 .error-message {
@@ -326,3 +342,57 @@
   white-space: pre-wrap;
   word-wrap: break-word;
 }
+
+.url-copy-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+}
+
+.url-label {
+  font-weight: 500;
+  color: #2c3e50;
+  min-width: fit-content;
+}
+
+.url-code {
+  flex: 1;
+  background-color: #f5f5f5;
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+  color: #333;
+  border: 1px solid #ddd;
+  word-break: break-all;
+  min-width: 0;
+}
+
+.btn-copy-url {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+  background-color: #3498db;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.btn-copy-url:hover {
+  background-color: #2980b9;
+}
+
+.instructions-content ol,
+.instructions-content ul {
+  color: #555;
+}
+
+.instructions-content li {
+  margin-bottom: 0.5rem;
+}
+

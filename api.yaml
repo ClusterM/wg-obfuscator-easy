@@ -1175,18 +1175,17 @@ paths:
     get:
       tags:
         - Statistics
-      summary: Generate Grafana token
+      summary: Get Grafana token
       description: |
-        Generate a new Grafana token for API access.
-        Only one token can exist at a time. When generating a new token, the old one is automatically replaced.
+        Get current Grafana token if it exists.
+        Returns null if no token has been generated yet.
         This token can be used for authentication with Grafana endpoints instead of JWT token.
-        Each call to this endpoint generates a new token.
       operationId: getGrafanaToken
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Grafana token
+          description: Grafana token (or null if not set)
           content:
             application/json:
               schema:
@@ -1194,7 +1193,35 @@ paths:
                 properties:
                   token:
                     type: string
-                    description: Grafana authentication token
+                    nullable: true
+                    description: Grafana authentication token (null if not set)
+                    example: "a1b2c3d4e5f6..."
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags:
+        - Statistics
+      summary: Generate Grafana token
+      description: |
+        Generate a new Grafana token for API access.
+        Only one token can exist at a time. When generating a new token, the old one is automatically replaced.
+        This token can be used for authentication with Grafana endpoints instead of JWT token.
+      operationId: generateGrafanaToken
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: New Grafana token generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: New Grafana authentication token
                     example: "a1b2c3d4e5f6..."
         '401':
           $ref: '#/components/responses/Unauthorized'

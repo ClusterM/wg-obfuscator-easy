@@ -142,6 +142,11 @@ class ApiService {
     return response.data;
   }
 
+  async generateGrafanaToken() {
+    const response = await this.client.post('/grafana/token');
+    return response.data;
+  }
+
   async deleteGrafanaToken() {
     const response = await this.client.delete('/grafana/token');
     return response.data;
