@@ -22,6 +22,7 @@
 #
 
 set -e
+#set -x
 
 # Colors for output
 RED='\033[0;31m'
@@ -1179,9 +1180,7 @@ main() {
         echo ""
     else
         # Generate random values
-        HTTP_PORT=$(generate_port)
         ADMIN_PASSWORD=$(generate_password)
-        WIREGUARD_PORT=$(generate_port)
         WEB_PREFIX="/$(generate_prefix)/"
     fi
 
@@ -1252,27 +1251,31 @@ main() {
         fi
     fi
 
-    # Ensure HTTP port is not in use
-    local max_port_attempts=10
-    local port_attempt=0
-    while check_port "$HTTP_PORT"; do
-        if [ $port_attempt -ge $max_port_attempts ]; then
-            print_error "Failed to find available HTTP port after $max_port_attempts attempts"
-            exit 1
-        fi
+    if [ "$KEEP_OLD_HOST_CONFIG" = false ]; then
         HTTP_PORT=$(generate_port)
-        port_attempt=$((port_attempt + 1))
-    done
-    # Ensure WireGuard port is not in use
-    port_attempt=0
-    while check_port "$WIREGUARD_PORT"; do
-        if [ $port_attempt -ge $max_port_attempts ]; then
-            print_error "Failed to find available WireGuard port after $max_port_attempts attempts"
-            exit 1
-        fi
+        # Ensure HTTP port is not in use
+        local max_port_attempts=10
+        local port_attempt=0
+        while check_port "$HTTP_PORT"; do
+            if [ $port_attempt -ge $max_port_attempts ]; then
+                print_error "Failed to find available HTTP port after $max_port_attempts attempts"
+                exit 1
+            fi
+            HTTP_PORT=$(generate_port)
+            port_attempt=$((port_attempt + 1))
+        done
         WIREGUARD_PORT=$(generate_port)
-        port_attempt=$((port_attempt + 1))
-    done
+        # Ensure WireGuard port is not in use
+        port_attempt=0
+        while check_port "$WIREGUARD_PORT"; do
+            if [ $port_attempt -ge $max_port_attempts ]; then
+                print_error "Failed to find available WireGuard port after $max_port_attempts attempts"
+                exit 1
+            fi
+            WIREGUARD_PORT=$(generate_port)
+            port_attempt=$((port_attempt + 1))
+        done
+    fi
     
     # Create config directory
     mkdir -p "$CONFIG_DIR"
@@ -1299,9 +1302,9 @@ main() {
         -e EXTERNAL_IP="$EXTERNAL_IP" \
         -e EXTERNAL_PORT="$WIREGUARD_PORT" \
         -e ADMIN_PASSWORD="$ADMIN_PASSWORD" \
+        -e LOG_LEVEL=DEBUG \
         -p "${WIREGUARD_PORT}:${WIREGUARD_PORT}/udp" \
         -p "${HTTP_PORT}:5000/tcp" \
-        -e LOG_LEVEL=DEBUG \
         --cap-add NET_ADMIN \
         --cap-add SYS_MODULE \
         --sysctl net.ipv4.ip_forward=1 \
@@ -1568,6 +1571,7 @@ main() {
         print_info "$(msg INSTALLED_VERSION "$APP_VERSION")"
     fi
     print_info "$(msg INSTALL_COMPLETE)"
+    echo ""
 
     if [ "$FIREWALL_BACKEND" != "none" ]; then
         local opened_ports=""
