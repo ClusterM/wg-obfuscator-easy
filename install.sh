@@ -130,10 +130,29 @@ install_docker() {
         sh get-docker.sh
         rm get-docker.sh
     elif [ "$OS" = "rhel" ] || [ "$OS" = "centos" ] || [ "$OS" = "fedora" ]; then
+        local docker_packages="docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin"
         if command_exists dnf; then
-            dnf install -y docker
+            if rpm -q podman-docker >/dev/null 2>&1; then
+                print_warning "Removing podman-docker to avoid conflicts with Docker CE..."
+                dnf remove -y podman-docker >/dev/null
+            fi
+            dnf install -y dnf-plugins-core
+            if ! dnf repolist 2>/dev/null | grep -q "^docker-ce-stable"; then
+                print_info "Adding official Docker CE repository..."
+                dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo >/dev/null
+            fi
+            dnf install -y $docker_packages
         else
-            yum install -y docker
+            if rpm -q podman-docker >/dev/null 2>&1; then
+                print_warning "Removing podman-docker to avoid conflicts with Docker CE..."
+                yum remove -y podman-docker >/dev/null
+            fi
+            yum install -y yum-utils
+            if ! yum repolist 2>/dev/null | grep -q "^docker-ce-stable"; then
+                print_info "Adding official Docker CE repository..."
+                yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo >/dev/null
+            fi
+            yum install -y $docker_packages
         fi
         systemctl enable docker
         systemctl start docker
@@ -144,12 +163,6 @@ install_docker() {
     else
         print_error "Unable to detect OS for Docker installation"
         exit 1
-    fi
-
-    # Create /etc/containers/nodocker if podman is installed
-    if command_exists podman; then
-        mkdir -p /etc/containers
-        touch /etc/containers/nodocker
     fi
 
     # Verify Docker installation
@@ -859,7 +872,7 @@ main() {
     fi    
 
     while true; do
-        read -p "Do you want to enable HTTPS (recommended)? It requires a domain name, but you can use a free domain name. (y/[n]): " -r
+        read -p "Do you want to enable HTTPS (recommended)? It requires a domain name, but you can use a free domain name. (y/N): " -r
         if [[ "$REPLY" =~ ^[Yy]$ ]]; then
             ENABLE_HTTPS=true
             break
@@ -872,7 +885,7 @@ main() {
     if [ "$ENABLE_HTTPS" = true ]; then
         # TODO: check reverse DNS for the domain, which should point to the server IP address
         while true; do
-            read -p "Do you need a guide how to obtain a free domain name from DuckDNS? ([y]/n/q): " -r
+            read -p "Do you need a guide how to obtain a free domain name from DuckDNS? (Y/n/q): " -r
             if [[ "$REPLY" =~ ^[Qq]$ ]]; then
                 ENABLE_HTTPS=false
                 break
