@@ -1084,7 +1084,34 @@ main() {
     fi
     print_info "================================================"
     echo ""
-       
+
+
+    if [ "$FIREWALL_BACKEND" != "none" ]; then
+        local opened_ports=""
+        local skipped_ports=""
+        if [ ${#FIREWALL_PORTS_OPENED[@]} -gt 0 ]; then
+            opened_ports=$(printf "%s\n" "${FIREWALL_PORTS_OPENED[@]}" | sort -u | tr '\n' ' ' | sed 's/ $//')
+        fi
+        if [ ${#FIREWALL_PORTS_SKIPPED[@]} -gt 0 ]; then
+            skipped_ports=$(printf "%s\n" "${FIREWALL_PORTS_SKIPPED[@]}" | sort -u | tr '\n' ' ' | sed 's/ $//')
+        fi
+
+        if [ -n "$opened_ports" ]; then
+            print_info "Firewall ($FIREWALL_BACKEND) opened ports: $opened_ports"
+        fi
+        if [ -n "$skipped_ports" ]; then
+            print_warning "Firewall ports requiring manual configuration: $skipped_ports"
+        fi
+
+        if [ "$FIREWALL_BACKEND" = "ufw" ] && [ "$FIREWALL_BACKEND_STATE" != "active" ]; then
+            print_warning "UFW rules were not applied automatically because UFW is inactive."
+        fi
+        if [ "$FIREWALL_BACKEND" = "firewalld" ] && [ "$FIREWALL_BACKEND_STATE" != "active" ]; then
+            print_warning "firewalld rules were not applied automatically because the service is not running."
+        fi
+    fi
+    echo ""
+
     print_info "Configuration:"
     print_info "  Container name: $CONTAINER_NAME"
     print_info "  WireGuard port: $WIREGUARD_PORT"
@@ -1123,33 +1150,6 @@ main() {
     print_warning "Save these credentials in a secure location!"
     if [ "$ENABLE_HTTPS" = false ]; then
         print_warning "HTTPS is not enabled. You can enable it later by running the script again."
-    fi
-
-    if [ "$FIREWALL_BACKEND" != "none" ]; then
-        local opened_ports=""
-        local skipped_ports=""
-        if [ ${#FIREWALL_PORTS_OPENED[@]} -gt 0 ]; then
-            opened_ports=$(printf "%s\n" "${FIREWALL_PORTS_OPENED[@]}" | sort -u | tr '\n' ' ' | sed 's/ $//')
-        fi
-        if [ ${#FIREWALL_PORTS_SKIPPED[@]} -gt 0 ]; then
-            skipped_ports=$(printf "%s\n" "${FIREWALL_PORTS_SKIPPED[@]}" | sort -u | tr '\n' ' ' | sed 's/ $//')
-        fi
-
-        if [ -n "$opened_ports" ]; then
-            print_info "Firewall ($FIREWALL_BACKEND) opened ports: $opened_ports"
-        fi
-        if [ -n "$skipped_ports" ]; then
-            print_warning "Firewall ports requiring manual configuration: $skipped_ports"
-        fi
-
-        if [ "$FIREWALL_BACKEND" = "ufw" ] && [ "$FIREWALL_BACKEND_STATE" != "active" ]; then
-            print_warning "UFW rules were not applied automatically because UFW is inactive."
-        fi
-        if [ "$FIREWALL_BACKEND" = "firewalld" ] && [ "$FIREWALL_BACKEND_STATE" != "active" ]; then
-            print_warning "firewalld rules were not applied automatically because the service is not running."
-        fi
-    else
-        print_warning "No firewall manager detected. Ensure that your hosting provider or external firewall allows incoming connections."
     fi
     
     # Save configuration to file
