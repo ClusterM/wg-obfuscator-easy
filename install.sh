@@ -307,7 +307,7 @@ declare -A MSG_RU=(
     [APP_NOT_READY]="Приложение может быть ещё не полностью готово. Оно должно стать доступным в ближайшее время."
     [GETTING_VERSION]="Получение версии приложения..."
     [APP_VERSION]="Версия приложения: v%s"
-    [INSTALLED_VERSION_OLD] = "Установленная до этого версия: v%s"
+    [INSTALLED_VERSION_OLD]="Установленная до этого версия: v%s"
     [VERSION_UNKNOWN]="Не удалось определить версию приложения"
     [ENABLE_HTTPS_PROMPT]="Хотите включить HTTPS (рекомендуется)? Требуется доменное имя, но вы можете использовать бесплатный домен. (Y/n): "
     [NEED_GUIDE_DUCKDNS]="Нужна инструкция, как получить бесплатный домен от DuckDNS? (Y/n/q): "
@@ -1251,7 +1251,7 @@ main() {
         print_info "  bash install.sh"
         echo ""
         print_info "$(msg SCRIPT_OR_WGET)"
-        print_info "  wget https://raw.githubusercontent.com/ClusterM/wg-obfuscator-easy/master/install.sh"
+        print_info "  wget https://raw.githubusercontent.com/ClusterM/wg-obfuscator-easy/master/install.sh -O install.sh"
         print_info "  bash install.sh"
         echo ""
         exit 1
