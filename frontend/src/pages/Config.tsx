@@ -45,6 +45,40 @@ export default function Config() {
   const [generatingGrafanaToken, setGeneratingGrafanaToken] = useState(false);
   const [showGrafanaInstructions, setShowGrafanaInstructions] = useState(false);
 
+  const copyTextToClipboard = async (text: string) => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+
+      let successful = false;
+      try {
+        successful = document.execCommand('copy');
+      } finally {
+        document.body.removeChild(textArea);
+      }
+
+      if (!successful) {
+        throw new Error('execCommand failed');
+      }
+
+      return true;
+    } catch (err) {
+      console.error('Failed to copy to clipboard:', err);
+      return false;
+    }
+  };
+
   const loadConfig = async () => {
     try {
       setLoading(true);
@@ -280,22 +314,24 @@ export default function Config() {
   const handleCopyGrafanaToken = async () => {
     if (!grafanaToken) return;
     
-    try {
-      await navigator.clipboard.writeText(grafanaToken);
+    const copied = await copyTextToClipboard(grafanaToken);
+    if (copied) {
       setSuccess(t('config.tokenCopied'));
       setTimeout(() => setSuccess(''), 2000);
-    } catch (err) {
+    } else {
       setError(t('common.copyFailed'));
+      setTimeout(() => setError(''), 3000);
     }
   };
 
   const handleCopyUrl = async (url: string) => {
-    try {
-      await navigator.clipboard.writeText(url);
+    const copied = await copyTextToClipboard(url);
+    if (copied) {
       setSuccess(t('common.copied'));
       setTimeout(() => setSuccess(''), 2000);
-    } catch (err) {
+    } else {
       setError(t('common.copyFailed'));
+      setTimeout(() => setError(''), 3000);
     }
   };
 
