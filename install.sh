@@ -131,7 +131,7 @@ declare -A MSG_EN=(
     [GETTING_VERSION]="Getting application version..."
     [APP_VERSION]="Application version: v%s"
     [VERSION_UNKNOWN]="Could not determine application version"
-    [ENABLE_HTTPS_PROMPT]="Do you want to enable HTTPS (recommended)? It requires a domain name, but you can use a free domain name. (y/N): "
+    [ENABLE_HTTPS_PROMPT]="Do you want to enable HTTPS (recommended)? It requires a domain name, but you can use a free domain name. (Y/n): "
     [NEED_GUIDE_DUCKDNS]="Do you need a guide how to obtain a free domain name from DuckDNS? (Y/n/q): "
     [DUCKDNS_GUIDE_INTRO]="We'll use DuckDNS to create a free domain name for your server."
     [DUCKDNS_YOUR_IP]="Your server IP address is: %s"
@@ -296,7 +296,7 @@ declare -A MSG_RU=(
     [GETTING_VERSION]="Получение версии приложения..."
     [APP_VERSION]="Версия приложения: v%s"
     [VERSION_UNKNOWN]="Не удалось определить версию приложения"
-    [ENABLE_HTTPS_PROMPT]="Хотите включить HTTPS (рекомендуется)? Требуется доменное имя, но вы можете использовать бесплатный домен. (y/N): "
+    [ENABLE_HTTPS_PROMPT]="Хотите включить HTTPS (рекомендуется)? Требуется доменное имя, но вы можете использовать бесплатный домен. (Y/n): "
     [NEED_GUIDE_DUCKDNS]="Нужна инструкция, как получить бесплатный домен от DuckDNS? (Y/n/q): "
     [DUCKDNS_GUIDE_INTRO]="Мы используем DuckDNS для создания бесплатного доменного имени для вашего сервера."
     [DUCKDNS_YOUR_IP]="IP-адрес вашего сервера: %s"
@@ -1369,10 +1369,10 @@ main() {
     if [ "$KEEP_OLD_HOST_CONFIG" = false ]; then
         while true; do
             read -p "$(msg ENABLE_HTTPS_PROMPT)" -r
-            if [[ "$REPLY" =~ ^[Yy]$ ]]; then
+            if [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Yy]$ ]]; then
                 ENABLE_HTTPS=true
                 break
-            elif [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Nn]$ ]]; then
+            elif [[ "$REPLY" =~ ^[Nn]$ ]]; then
                 ENABLE_HTTPS=false
                 break
             fi
