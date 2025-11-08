@@ -191,6 +191,7 @@ declare -A MSG_EN=(
     [HTTP_URL]="HTTP URL: %s (not recommended - use HTTPS)"
     [HTTPS_URL]="HTTPS URL: %s (using Let's Encrypt certificate)"
     [HTTP_URL_SIMPLE]="HTTP URL: %s"
+    [RESET_PASSWORD_PROMPT]="Do you want to reset current password?"
     [LOGIN_CREDENTIALS]="Login Credentials:"
     [USERNAME]="  Username: admin"
     [PASSWORD]="  Password: %s"
@@ -198,6 +199,16 @@ declare -A MSG_EN=(
     [CERT_WAIT]="It can some time for the certificate to be obtained. If you cannot access the web interface, please wait a few minutes and try again."
     [SAVE_CREDENTIALS]="Save these credentials in a secure location!"
     [HTTPS_NOT_ENABLED]="HTTPS is not enabled. You can enable it later by running the script again."
+    [DB_NOT_FOUND]="Database file not found: %s"
+    [CONTAINER_NOT_FOUND_RESET]="Container %s not found."
+    [CONTAINER_STARTING_TEMP]="Container is not running. Starting temporarily to reset password..."
+    [CONTAINER_START_FAILED_RESET]="Failed to start container."
+    [ADMIN_RESET_FAILED]="Failed to update administrator database."
+    [ADMIN_RESET_SUCCESS]="Administrator credentials have been reset."
+    [ADMIN_NEW_LOGIN]="New login: admin"
+    [ADMIN_NEW_PASSWORD]="New password: %s"
+    [TOKENS_DELETED]="All active access tokens have been deleted. Users need to log in again."
+    [PRESS_ENTER]="Press Enter to continue..."
 )
 
 # Language strings - Russian
@@ -357,6 +368,7 @@ declare -A MSG_RU=(
     [HTTP_URL]="HTTP URL: %s (не рекомендуется - используйте HTTPS)"
     [HTTPS_URL]="HTTPS URL: %s (используется сертификат Let's Encrypt)"
     [HTTP_URL_SIMPLE]="HTTP URL: %s"
+    [RESET_PASSWORD_PROMPT]="Хотите сбросить текущий пароль?"
     [LOGIN_CREDENTIALS]="Учётные данные для входа:"
     [USERNAME]="  Имя пользователя: admin"
     [PASSWORD]="  Пароль: %s"
@@ -364,6 +376,16 @@ declare -A MSG_RU=(
     [CERT_WAIT]="Получение сертификата может занять некоторое время. Если вы не можете получить доступ к веб-интерфейсу, подождите несколько минут и попробуйте снова."
     [SAVE_CREDENTIALS]="Сохраните эти учётные данные в безопасном месте!"
     [HTTPS_NOT_ENABLED]="HTTPS не включён. Вы можете включить его позже, запустив скрипт снова."
+    [DB_NOT_FOUND]="Файл базы данных не найден: %s"
+    [CONTAINER_NOT_FOUND_RESET]="Контейнер %s не найден."
+    [CONTAINER_STARTING_TEMP]="Контейнер не запущен. Запускаю временно для сброса пароля..."
+    [CONTAINER_START_FAILED_RESET]="Не удалось запустить контейнер."
+    [ADMIN_RESET_FAILED]="Не удалось обновить базу данных администратора."
+    [ADMIN_RESET_SUCCESS]="Учётные данные администратора сброшены."
+    [ADMIN_NEW_LOGIN]="Новый логин: admin"
+    [ADMIN_NEW_PASSWORD]="Новый пароль: %s"
+    [TOKENS_DELETED]="Все активные токены доступа удалены. Пользователям нужно войти заново."
+    [PRESS_ENTER]="Нажмите Enter для продолжения..."
 )
 
 # Function to get localized message
@@ -902,6 +924,120 @@ get_app_version() {
     fi
     
     echo "$version"
+}
+
+reset_admin_credentials() {
+    local provided_password=$1
+    local started_temporarily="false"
+    local db_path="$CONFIG_DIR/wg-easy.db"
+    
+    # Check if password is provided
+    if [ -z "$provided_password" ]; then
+        print_error "$(msg ADMIN_RESET_FAILED)" >&2
+        return 1
+    fi
+    
+    # Check if database file exists
+    if [ ! -f "$db_path" ]; then
+        print_error "$(msg DB_NOT_FOUND "$db_path")" >&2
+        return 1
+    fi
+
+    # Detect container state
+    detect_container_state
+    
+    # Check if container exists
+    if [ "$CONTAINER_EXISTS" != "true" ]; then
+        print_error "$(msg CONTAINER_NOT_FOUND_RESET "$CONTAINER_NAME")" >&2
+        return 1
+    fi
+
+    # Start container if not running
+    if [ "$CONTAINER_RUNNING" != "true" ]; then
+        print_info "$(msg CONTAINER_STARTING_TEMP)" >&2
+        if ! docker start "$CONTAINER_NAME" >/dev/null 2>&1; then
+            print_error "$(msg CONTAINER_START_FAILED_RESET)" >&2
+            return 1
+        fi
+        started_temporarily="true"
+        # Wait for container to be ready
+        sleep 2
+    fi
+
+    # Update database with new credentials
+    local python_output
+    local python_exit_code
+    
+    python_output=$(docker exec "$CONTAINER_NAME" /usr/bin/env python3 - "$provided_password" <<'PY' 2>&1
+import sqlite3
+import sys
+import hashlib
+from datetime import datetime
+
+try:
+    password = sys.argv[1]
+    if not password:
+        print("Error: Password is empty", file=sys.stderr)
+        sys.exit(1)
+    
+    password_hash = hashlib.sha256(password.encode()).hexdigest()
+    now = datetime.now().isoformat()
+    
+    db_path = "/config/wg-easy.db"
+    
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # Update admin username
+        cursor.execute("""
+            INSERT INTO config (key, value, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET value=?, updated_at=?
+        """, ("admin_username", "admin", now, "admin", now))
+        
+        # Update admin password hash
+        cursor.execute("""
+            INSERT INTO config (key, value, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET value=?, updated_at=?
+        """, ("admin_password_hash", password_hash, now, password_hash, now))
+        
+        # Delete all tokens
+        cursor.execute("DELETE FROM tokens")
+        
+        conn.commit()
+        conn.close()
+        
+    except sqlite3.Error as e:
+        print(f"Database error: {e}", file=sys.stderr)
+        sys.exit(1)
+        
+except Exception as e:
+    print(f"Error: {e}", file=sys.stderr)
+    sys.exit(1)
+PY
+    )
+    python_exit_code=$?
+    
+    if [ $python_exit_code -ne 0 ]; then
+        print_error "$(msg ADMIN_RESET_FAILED)" >&2
+        if [ -n "$python_output" ]; then
+            echo "$python_output" >&2
+        fi
+        # Stop container if we started it temporarily
+        if [ "$started_temporarily" = "true" ]; then
+            docker stop "$CONTAINER_NAME" >/dev/null 2>&1 || true
+        fi
+        return 1
+    fi
+
+    # Stop container if we started it temporarily
+    if [ "$started_temporarily" = "true" ]; then
+        docker stop "$CONTAINER_NAME" >/dev/null 2>&1 || true
+    fi
+    
+    return 0
 }
 
 # Function to configure Caddy
@@ -1606,6 +1742,25 @@ main() {
         echo ""
     fi
 
+    NEW_PASSWORD=false
+    while true; do
+        read -p "$(msg RESET_PASSWORD_PROMPT)" -r
+        if [[ "$REPLY" =~ ^[Yy]$ ]]; then
+            if reset_admin_credentials "$ADMIN_PASSWORD"; then
+                # Function succeeded
+                NEW_PASSWORD=true
+                break
+            else
+                # Function failed, show error and continue loop
+                print_error "$(msg ADMIN_RESET_FAILED)"
+                read -p "$(msg PRESS_ENTER)" || true
+                # Continue loop to ask again
+            fi
+        elif [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Nn]$ ]]; then
+            break
+        fi
+    done
+
     print_info "$(msg CONFIGURATION)"
     print_info "$(msg CONTAINER_NAME "$CONTAINER_NAME")"
     print_info "$(msg WIREGUARD_PORT "$WIREGUARD_PORT")"
@@ -1629,7 +1784,7 @@ main() {
     fi
     echo ""
 
-    if [ "$CONFIG_EXISTS" = false ]; then
+    if [ "$CONFIG_EXISTS" = false ] || [ "$NEW_PASSWORD" = true ]; then
         print_info "$(msg LOGIN_CREDENTIALS)"
         print_info "$(msg USERNAME)"
         print_info "$(msg PASSWORD "$ADMIN_PASSWORD")"
