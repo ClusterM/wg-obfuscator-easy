@@ -61,7 +61,7 @@ def create_app(config_manager, client_manager, wg_manager, obfuscator_manager,
     limiter = Limiter(
         app=app,
         key_func=get_remote_address,
-        default_limits=["200 per hour", "50 per minute"],
+        default_limits=[],
         storage_uri="memory://"
     )
     app.limiter = limiter
