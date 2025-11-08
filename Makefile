@@ -15,6 +15,9 @@ all: build
 # Build multi-arch image without push
 build:
 	rm -rf static
+	find . -type d -name "__pycache__" -exec rm -r {} + 2>/dev/null || true
+	find . -type f -name "*.pyc" -delete 2>/dev/null || true
+	find . -type f -name "*.pyo" -delete 2>/dev/null || true
 	cd frontend && npm install
 	cd frontend && npm run build
 	docker buildx build --platform $(PLATFORMS) -t $(MULTIARCH_IMAGE) .
@@ -22,6 +25,9 @@ build:
 # Build and push multi-arch image
 push:
 	rm -rf static
+	find . -type d -name "__pycache__" -exec rm -r {} + 2>/dev/null || true
+	find . -type f -name "*.pyc" -delete 2>/dev/null || true
+	find . -type f -name "*.pyo" -delete 2>/dev/null || true
 	cd frontend && npm install
 	cd frontend && npm run build
 	docker buildx build --platform $(PLATFORMS) -t $(MULTIARCH_IMAGE) --push .
@@ -42,6 +48,9 @@ release:
 		exit 1; \
 	fi
 	rm -rf static
+	find . -type d -name "__pycache__" -exec rm -r {} + 2>/dev/null || true
+	find . -type f -name "*.pyc" -delete 2>/dev/null || true
+	find . -type f -name "*.pyo" -delete 2>/dev/null || true
 	cd frontend && npm install
 	cd frontend && npm run build
 	docker buildx build --platform $(PLATFORMS) -t $(IMAGE_NAME):$(VERSION) -t $(IMAGE_NAME):latest --push .
