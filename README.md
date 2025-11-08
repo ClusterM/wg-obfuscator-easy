@@ -32,17 +32,16 @@ The installation script will:
 1. Check for root privileges
 2. Install Docker and required packages
 3. Detect your server's external IP address
-4. Generate a domain using nip.io
+4. Guide you through obtaining a free Dynu DDNS domain
 5. Generate random configuration values (admin password, web prefix, ports)
 6. Pull and run the Docker container
 7. Install and configure Caddy (outside the container) for HTTPS with automatic SSL certificates
 8. Display access information and credentials
 
 After installation, you'll receive:
-- HTTPS URL (via nip.io domain) - if Caddy was installed
-- HTTP URL (direct access to container) - always available
+- HTTP URL to the control panel
+- HTTPS URL - if domain name was provided
 - Admin username and password
-- Configuration file location
 
 > **Note:** Caddy is installed outside the Docker container only when using the automated installation script. For manual Docker installations, you'll need to set up HTTPS separately or access the container directly via HTTP.
 
@@ -71,8 +70,7 @@ docker run -d \
 
 After starting the container, access the web interface at:
 - HTTP: `http://your-server-ip:5000/your-prefix/`
-
-For HTTPS, you'll need to set up a reverse proxy (like Nginx, Caddy, or Traefik) outside the container, or use the automated installation script which sets up Caddy automatically.
+- HTTPS (optional): The container can serve TLS directly if you mount certificates via `SSL_CERT_FILE` and `SSL_KEY_FILE`, but this setup is discouraged—prefer terminating TLS in an external reverse proxy (Caddy, Nginx, Traefik, etc.) or use the automated installation script, which configures Caddy automatically.
 
 ### Environment Variables
 
@@ -190,8 +188,8 @@ The web interface provides:
 ### Accessing the Web Interface
 
 **With automated installation script:**
-- HTTPS: `https://your-domain.nip.io/your-prefix/` (via Caddy reverse proxy)
-- HTTP: `http://your-server-ip:port/your-prefix/` (direct container access)
+- HTTP: `http://your-server-ip/your-prefix/` (direct container access)
+- HTTPS: `https://your-domain.dynu.net/your-prefix/` (via Caddy reverse proxy and Lets Encrypt)
 
 **With manual Docker installation:**
 - HTTP: `http://your-server-ip:5000/your-prefix/` (direct container access)
@@ -211,7 +209,7 @@ The application provides a complete REST API documented in OpenAPI 3.0 format. S
 - **Clients**: `/api/clients/*` - Client management (CRUD operations)
 - **Configuration**: `/api/config/*` - Server configuration
 - **Statistics**: `/api/stats/*` - Server and client statistics
-- **Metrics**: `/api/metrics/*` - Prometheus-compatible metrics (requires JWT or metrics token)
+- **Metrics**: `/api/metrics/*` - Prometheus-compatible metrics (requires JWT or metrics token). Includes overall service status and client statuses.
 - **Health**: `/health` - Health check endpoint
 
 ### Authentication
@@ -235,7 +233,7 @@ Include the token in Prometheus scrape jobs via the standard `Authorization: Bea
 ### Rate Limiting
 
 - Login endpoint: 5 attempts per minute per IP
-- Default limits: 200 requests per hour, 50 per minute
+- Other API endpoints are not rate limited by default; configure rate limiting at your reverse proxy if required
 
 ## Configuration
 
@@ -344,7 +342,7 @@ Note: The frontend needs to connect to a running backend container. Configure th
 ### SSL certificate issues
 
 - Caddy is only installed by the automated installation script (outside the container)
-- For nip.io domains, certificates are obtained automatically via Let's Encrypt
+- For Dynu domains (or any other domain you configure), certificates are obtained automatically via Let's Encrypt
 - Check Caddy logs: `journalctl -u caddy`
 - Verify DNS resolution for your domain
 - If using manual installation, set up your own reverse proxy with SSL certificates
