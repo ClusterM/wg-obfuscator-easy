@@ -1623,23 +1623,25 @@ main() {
     finalize_firewall_changes
 
     NEW_PASSWORD=false
-    while true; do
-        read -p "$(msg RESET_PASSWORD_PROMPT)" -r
-        if [[ "$REPLY" =~ ^[Yy]$ ]]; then
-            if reset_admin_credentials "$ADMIN_PASSWORD"; then
-                # Function succeeded
-                NEW_PASSWORD=true
+    if [ "$CONFIG_EXISTS" = true ]; then
+        while true; do
+            read -p "$(msg RESET_PASSWORD_PROMPT)" -r
+            if [[ "$REPLY" =~ ^[Yy]$ ]]; then
+                if reset_admin_credentials "$ADMIN_PASSWORD"; then
+                    # Function succeeded
+                    NEW_PASSWORD=true
+                    break
+                else
+                    # Function failed, show error and continue loop
+                    print_error "$(msg ADMIN_RESET_FAILED)"
+                    read -p "$(msg PRESS_ENTER)" || true
+                    # Continue loop to ask again
+                fi
+            elif [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Nn]$ ]]; then
                 break
-            else
-                # Function failed, show error and continue loop
-                print_error "$(msg ADMIN_RESET_FAILED)"
-                read -p "$(msg PRESS_ENTER)" || true
-                # Continue loop to ask again
             fi
-        elif [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Nn]$ ]]; then
-            break
-        fi
-    done
+        done
+    fi
 
     # Print summary
     echo ""
