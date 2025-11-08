@@ -178,6 +178,7 @@ declare -A MSG_EN=(
     [INSTALL_COMPLETE]="================================================"
     [INSTALL_COMPLETE2]="Installation completed successfully!"
     [INSTALLED_VERSION]="Installed version: v%s"
+    [INSTALLED_VERSION_OLD]="Previously installed version: v%s"
     [FIREWALL_OPENED_PORTS]="Firewall (%s) opened ports: %s"
     [FIREWALL_MANUAL_PORTS]="Firewall ports requiring manual configuration: %s"
     [UFW_NOT_APPLIED]="UFW rules were not applied automatically because UFW is inactive."
@@ -343,6 +344,7 @@ declare -A MSG_RU=(
     [INSTALL_COMPLETE]="================================================"
     [INSTALL_COMPLETE2]="Установка успешно завершена!"
     [INSTALLED_VERSION]="Установленная версия: v%s"
+    [INSTALLED_VERSION_OLD]="Ранее установленная версия: v%s"
     [FIREWALL_OPENED_PORTS]="Файрвол (%s) открыл порты: %s"
     [FIREWALL_MANUAL_PORTS]="Порты файрвола, требующие ручной настройки: %s"
     [UFW_NOT_APPLIED]="Правила UFW не были применены автоматически, так как UFW неактивен."
@@ -889,10 +891,10 @@ install_caddy() {
 # Function to get application version from container
 get_app_version() {
     local container_name=$1
-    local version="unknown"    
-  
+    local version="unknown"
+
     # Try to get version via Python import
-    if [ "$version" = "unknown" ]; then
+    if [ "$version" = "unknown" ] && command_exists docker; then
         local python_version=$(docker exec "$container_name" python3 -c "import sys; sys.path.insert(0, '/app'); from version import VERSION; print(VERSION)" 2>/dev/null)
         if [ -n "$python_version" ]; then
             version="$python_version"
@@ -1164,7 +1166,9 @@ main() {
 
     CONFIG_EXISTS=false
     KEEP_OLD_HOST_CONFIG=false
+    OLD_APP_VERSION=""
     if [ -f "$CONFIG_FILE" ]; then
+        OLD_APP_VERSION=$(get_app_version "$CONTAINER_NAME")
         CONFIG_EXISTS=true
         ADMIN_PASSWORD=""
         while true; do
@@ -1568,6 +1572,9 @@ main() {
     print_info "$(msg INSTALL_COMPLETE)"
     print_info "$(msg INSTALL_COMPLETE2)"
     if [ -n "$APP_VERSION" ]; then
+        if [ -n "$OLD_APP_VERSION" ]; then
+            print_info "$(msg INSTALLED_VERSION_OLD "$OLD_APP_VERSION")"
+        fi
         print_info "$(msg INSTALLED_VERSION "$APP_VERSION")"
     fi
     print_info "$(msg INSTALL_COMPLETE)"
