@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import './Config.css';
@@ -44,6 +44,19 @@ export default function Config() {
   const [metricsToken, setMetricsToken] = useState<string | null>(null);
   const [generatingMetricsToken, setGeneratingMetricsToken] = useState(false);
   const [showMetricsInstructions, setShowMetricsInstructions] = useState(false);
+  const metricsTokenInputRef = useRef<HTMLInputElement | null>(null);
+  const endpointRefs = useRef<Record<string, HTMLElement | null>>({});
+
+  const flashElement = (element?: HTMLElement | null) => {
+    if (!element) return;
+    element.classList.remove('copy-flash');
+    // Force reflow to restart animation
+    void element.offsetWidth;
+    element.classList.add('copy-flash');
+    setTimeout(() => {
+      element.classList.remove('copy-flash');
+    }, 400);
+  };
 
   const copyTextToClipboard = async (text: string) => {
     try {
@@ -316,19 +329,17 @@ export default function Config() {
     
     const copied = await copyTextToClipboard(metricsToken);
     if (copied) {
-      setSuccess(t('config.tokenCopied'));
-      setTimeout(() => setSuccess(''), 2000);
+      flashElement(metricsTokenInputRef.current);
     } else {
       setError(t('common.copyFailed'));
       setTimeout(() => setError(''), 3000);
     }
   };
 
-  const handleCopyUrl = async (url: string) => {
+  const handleCopyUrl = async (url: string, element?: HTMLElement | null) => {
     const copied = await copyTextToClipboard(url);
     if (copied) {
-      setSuccess(t('common.copied'));
-      setTimeout(() => setSuccess(''), 2000);
+      flashElement(element);
     } else {
       setError(t('common.copyFailed'));
       setTimeout(() => setError(''), 3000);
@@ -507,8 +518,9 @@ export default function Config() {
                     type="text"
                     value={metricsToken}
                     readOnly
-                    className="mono"
+                    className="mono copy-highlight-target"
                     style={{ fontFamily: 'monospace', fontSize: '0.9rem' }}
+                    ref={metricsTokenInputRef}
                   />
                   <button
                     type="button"
@@ -542,10 +554,21 @@ export default function Config() {
                               <li key={index} style={{ marginBottom: '0.5rem' }}>
                                 <div className="url-copy-container">
                                   <span className="url-label">{endpoint.label}:</span>
-                                  <code className="url-code">{endpoint.url}</code>
+                                <code
+                                  className="url-code copy-highlight-target"
+                                  ref={el => {
+                                    if (el) {
+                                      endpointRefs.current[endpoint.url] = el;
+                                    } else {
+                                      delete endpointRefs.current[endpoint.url];
+                                    }
+                                  }}
+                                >
+                                  {endpoint.url}
+                                </code>
                                   <button
                                     type="button"
-                                    onClick={() => handleCopyUrl(endpoint.url)}
+                                  onClick={() => handleCopyUrl(endpoint.url, endpointRefs.current[endpoint.url])}
                                     className="btn-copy-url"
                                     title={t('common.copy')}
                                   >

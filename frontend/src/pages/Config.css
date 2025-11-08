@@ -340,6 +340,15 @@
   border: 1px solid #e0e0e0;
 }
 
+.copy-highlight-target {
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.copy-flash {
+  background-color: #d4edda !important;
+  box-shadow: 0 0 0 2px rgba(39, 174, 96, 0.4);
+}
+
 .instructions-content pre {
   margin: 0;
   color: #555;
