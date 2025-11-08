@@ -133,22 +133,21 @@ declare -A MSG_EN=(
     [INSTALLED_VERSION_OLD]="Previously installed version: v%s"
     [VERSION_UNKNOWN]="Could not determine application version"
     [ENABLE_HTTPS_PROMPT]="Do you want to enable HTTPS (recommended)? It requires a domain name, but you can use a free domain name. (Y/n): "
-    [NEED_GUIDE_DUCKDNS]="Do you need a guide how to obtain a free domain name from DuckDNS? (Y/n/q): "
-    [DUCKDNS_GUIDE_INTRO]="We'll use DuckDNS to create a free domain name for your server."
-    [DUCKDNS_YOUR_IP]="Your server IP address is: %s"
-    [DUCKDNS_STEPS]="Follow these steps to set up DuckDNS:"
-    [DUCKDNS_STEP1]="1. Open your web browser and go to: https://www.duckdns.org/"
-    [DUCKDNS_STEP2]="2. Click on 'Sign in with Google' or 'Sign in with GitHub'"
-    [DUCKDNS_STEP2_NOTE]="   (You can use any Google or GitHub account - it's free)"
-    [DUCKDNS_STEP3]="3. After signing in, you'll see a page where you must:"
-    [DUCKDNS_STEP3_1]="   - Enter a new subdomain name (e.g., any name you want, but it must be unique and not already taken)"
-    [DUCKDNS_STEP3_2]="   - Enter your server IP address: %s"
-    [DUCKDNS_STEP3_3]="   - Click 'add domain' or 'update ip'"
-    [DUCKDNS_ENTER_SUBDOMAIN]="After creating your DuckDNS domain, enter your DuckDNS subdomain name (or enter 'q' to cancel and continue without HTTPS)."
-    [DUCKDNS_EXAMPLE]="Example: If your domain is 'myvpn.duckdns.org', enter 'myvpn'."
-    [DUCKDNS_SUBDOMAIN_PROMPT]="DuckDNS subdomain: "
-    [SUBDOMAIN_EMPTY]="Subdomain cannot be empty. Please enter your DuckDNS subdomain."
-    [SUBDOMAIN_INVALID]="Invalid subdomain. Use only letters, numbers, and hyphens."
+    [NEED_GUIDE_DYNU]="Do you need a guide how to obtain a free domain name from Dynu? (Y/n/q): "
+    [DYNU_GUIDE_INTRO]="We'll use Dynu to create a free domain name for your server."
+    [DYNU_YOUR_IP]="Your server IP address is: %s"
+    [DYNU_STEPS]="Follow these steps to set up Dynu:"
+    [DYNU_STEP0]="0. Go to the website https://www.dynu.com"
+    [DYNU_STEP1]="1. Create an account (create account) or log in to the site (login)."
+    [DYNU_STEP2]="2. Open Control Panel (if not already open) via the gear icon at the top."
+    [DYNU_STEP3]="3. Click on \"DDNS Services\""
+    [DYNU_STEP4]="4. Click the \"+ Add\" button"
+    [DYNU_STEP5]="5. In the \"Host\" field, enter any name you want to use as the first part of the domain name. The main thing is that this name is not already taken by someone else."
+    [DYNU_STEP6]="6. In the \"Top Level\" field, select the second part of the domain name. Any one you like best. Except those marked \"Members only\" - they are paid."
+    [DYNU_STEP7]="7. Click the \"+ Add\" button."
+    [DYNU_STEP8]="8. In the \"IPv4 Address\" field, enter your server IP address: %s"
+    [DYNU_STEP9]="9. Click the \"Save\" button."
+    [DYNU_STEP10]="10. Done. If you didn't remember, your domain name is written on the gray background, above the \"Last Update\" label."
     [ENTER_DOMAIN]="Enter your domain name (or enter 'q' to cancel and continue without HTTPS): "
     [DOMAIN_EMPTY]="Domain cannot be empty. Please enter your domain name."
     [DOMAIN_INVALID]="Invalid domain name."
@@ -156,7 +155,7 @@ declare -A MSG_EN=(
     [DNS_CONFIGURED]="DNS is correctly configured! Domain %s points to %s."
     [DNS_WAITING]="Waiting for DNS to propagate... (attempt %s/%s)"
     [DNS_VERIFY_FAILED]="Could not verify DNS configuration automatically. Please check your DNS settings."
-    [DNS_DUCKDNS_NOTE]="If you are using DuckDNS, please make sure you have added your domain and your server IP address."
+    [DNS_DYNU_NOTE]="If you are using Dynu, please make sure you have added your domain and your server IP address."
     [DNS_PROPAGATION_NOTE]="It's possible that your DNS is not propagated yet. Please wait some time and try again. Some DNS providers take up to 24 hours to propagate."
     [CONTINUE_WITHOUT_HTTPS]="Let's continue without HTTPS for now."
     [SSL_SETUP]="SSL Certificate Setup"
@@ -308,22 +307,21 @@ declare -A MSG_RU=(
     [INSTALLED_VERSION_OLD]="Установленная до этого версия: v%s"
     [VERSION_UNKNOWN]="Не удалось определить версию приложения"
     [ENABLE_HTTPS_PROMPT]="Хотите включить HTTPS (рекомендуется)? Требуется доменное имя, но вы можете использовать бесплатный домен. (Y/n): "
-    [NEED_GUIDE_DUCKDNS]="Нужна инструкция, как получить бесплатный домен от DuckDNS? (Y/n/q): "
-    [DUCKDNS_GUIDE_INTRO]="Мы используем DuckDNS для создания бесплатного доменного имени для вашего сервера."
-    [DUCKDNS_YOUR_IP]="IP-адрес вашего сервера: %s"
-    [DUCKDNS_STEPS]="Следуйте этим шагам для настройки DuckDNS:"
-    [DUCKDNS_STEP1]="1. Откройте веб-браузер и перейдите на: https://www.duckdns.org/"
-    [DUCKDNS_STEP2]="2. Нажмите 'Sign in with Google' или 'Sign in with GitHub'"
-    [DUCKDNS_STEP2_NOTE]="   (Вы можете использовать любой аккаунт Google или GitHub - это бесплатно)"
-    [DUCKDNS_STEP3]="3. После входа вы увидите страницу, где нужно:"
-    [DUCKDNS_STEP3_1]="   - Ввести новое имя поддомена (например, любое имя, но оно должно быть уникальным и не занятым)"
-    [DUCKDNS_STEP3_2]="   - Ввести IP-адрес вашего сервера: %s"
-    [DUCKDNS_STEP3_3]="   - Нажать 'add domain' или 'update ip'"
-    [DUCKDNS_ENTER_SUBDOMAIN]="После создания домена DuckDNS введите имя вашего поддомена DuckDNS (или введите 'q' для отмены и продолжения без HTTPS)."
-    [DUCKDNS_EXAMPLE]="Пример: Если ваш домен 'myvpn.duckdns.org', введите 'myvpn'."
-    [DUCKDNS_SUBDOMAIN_PROMPT]="Поддомен DuckDNS: "
-    [SUBDOMAIN_EMPTY]="Поддомен не может быть пустым. Пожалуйста, введите ваш поддомен DuckDNS."
-    [SUBDOMAIN_INVALID]="Некорректный поддомен. Используйте только буквы, цифры и дефисы."
+    [NEED_GUIDE_DYNU]="Нужна инструкция, как получить бесплатный домен от Dynu? (Y/n/q): "
+    [DYNU_GUIDE_INTRO]="Мы используем Dynu для создания бесплатного доменного имени для вашего сервера."
+    [DYNU_YOUR_IP]="IP-адрес вашего сервера: %s"
+    [DYNU_STEPS]="Следуйте этим шагам для настройки Dynu:"
+    [DYNU_STEP0]="0. Зайти на сайт https://www.dynu.com"
+    [DYNU_STEP1]="1. Создать аккаунт (create account) или войти на сайт (login)."
+    [DYNU_STEP2]="2. Открыть Control Panel (если ещё не открылась) через иконку с шестерёнкой вверху."
+    [DYNU_STEP3]="3. Кликнуть на \"DDNS Services\""
+    [DYNU_STEP4]="4. Нажать кнопку \"+ Add\""
+    [DYNU_STEP5]="5. В поле \"Host\" введите любое имя, которое вы хотите использовать в качестве первой части имени домена. Главное - чтобы это имя ещё не было занято кем-то другим."
+    [DYNU_STEP6]="6. В поле \"Top Level\" выберите вторую часть имени домена. Любую, которая вам больше нравится. Кроме тех, у которых написано \"Members only\" - они платные."
+    [DYNU_STEP7]="7. Нажмите кнопку \"+ Add\"."
+    [DYNU_STEP8]="8. В поле \"IPv4 Address\" введите IP адрес вашего сервера: %s"
+    [DYNU_STEP9]="9. Нажмите кнопку \"Save\"."
+    [DYNU_STEP10]="10. Готово. Если вдруг не запомнили, имя вашего домена написано на сером фоне, над надписью \"Last Update\"."
     [ENTER_DOMAIN]="Введите ваше доменное имя (или введите 'q' для отмены и продолжения без HTTPS): "
     [DOMAIN_EMPTY]="Домен не может быть пустым. Пожалуйста, введите ваше доменное имя."
     [DOMAIN_INVALID]="Некорректное доменное имя."
@@ -331,7 +329,7 @@ declare -A MSG_RU=(
     [DNS_CONFIGURED]="DNS настроен правильно! Домен %s указывает на %s."
     [DNS_WAITING]="Ожидание распространения DNS... (попытка %s/%s)"
     [DNS_VERIFY_FAILED]="Не удалось автоматически проверить конфигурацию DNS. Пожалуйста, проверьте настройки DNS."
-    [DNS_DUCKDNS_NOTE]="Если вы используете DuckDNS, убедитесь, что вы добавили свой домен и IP-адрес сервера."
+    [DNS_DYNU_NOTE]="Если вы используете Dynu, убедитесь, что вы добавили свой домен и IP-адрес сервера."
     [DNS_PROPAGATION_NOTE]="Возможно, ваш DNS ещё не распространился. Подождите некоторое время и попробуйте снова. Некоторым DNS-провайдерам требуется до 24 часов для распространения."
     [CONTINUE_WITHOUT_HTTPS]="Продолжим без HTTPS пока что."
     [SSL_SETUP]="Настройка SSL-сертификата"
@@ -1468,79 +1466,69 @@ main() {
             fi
         done
 
-        DOMAIN=""
         if [ "$ENABLE_HTTPS" = true ]; then
             # TODO: check reverse DNS for the domain, which should point to the server IP address
             while true; do
-                read -p "$(msg NEED_GUIDE_DUCKDNS)" -r
+                read -p "$(msg NEED_GUIDE_DYNU)" -r
                 if [[ "$REPLY" =~ ^[Qq]$ ]]; then
                     ENABLE_HTTPS=false
                     break
                 elif [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Yy]$ ]]; then
                     echo ""
-                    print_info "$(msg DUCKDNS_GUIDE_INTRO)"
-                    print_info "$(msg DUCKDNS_YOUR_IP "$EXTERNAL_IP")"
+                    print_info "$(msg DYNU_GUIDE_INTRO)"
+                    print_info "$(msg DYNU_YOUR_IP "$EXTERNAL_IP")"
                     echo ""
-                    print_info "$(msg DUCKDNS_STEPS)"
+                    print_info "$(msg DYNU_STEPS)"
                     echo ""
-                    print_info "$(msg DUCKDNS_STEP1)"
+                    print_info "$(msg DYNU_STEP0)"
                     echo ""
-                    print_info "$(msg DUCKDNS_STEP2)"
-                    print_info "$(msg DUCKDNS_STEP2_NOTE)"
+                    print_info "$(msg DYNU_STEP1)"
                     echo ""
-                    print_info "$(msg DUCKDNS_STEP3)"
-                    print_info "$(msg DUCKDNS_STEP3_1)"
-                    print_info "$(msg DUCKDNS_STEP3_2 "$EXTERNAL_IP")"
-                    print_info "$(msg DUCKDNS_STEP3_3)"
+                    print_info "$(msg DYNU_STEP2)"
                     echo ""
-                    # Get DuckDNS subdomain
-                    while true; do
-                        print_info "$(msg DUCKDNS_ENTER_SUBDOMAIN)"
-                        print_info "$(msg DUCKDNS_EXAMPLE)"
-                        echo ""
-                        read -p "$(msg DUCKDNS_SUBDOMAIN_PROMPT)" -r
-                        if [[ "$REPLY" =~ ^[Qq]$ ]]; then
-                            ENABLE_HTTPS=false
-                            break
-                        fi
-                        local duckdns_subdomain="$REPLY"
-                        if [ -z "$duckdns_subdomain" ]; then
-                            print_error "$(msg SUBDOMAIN_EMPTY)"
-                            echo ""
-                            continue
-                        fi
-                        # Basic validation - only alphanumeric and hyphens
-                        if ! echo "$duckdns_subdomain" | grep -qE '^[a-zA-Z0-9-]+$'; then
-                            print_error "$(msg SUBDOMAIN_INVALID)"
-                            echo ""
-                            continue
-                        fi
-                        DOMAIN="${duckdns_subdomain}.duckdns.org"
-                        break
-                    done
+                    print_info "$(msg DYNU_STEP3)"
+                    echo ""
+                    print_info "$(msg DYNU_STEP4)"
+                    echo ""
+                    print_info "$(msg DYNU_STEP5)"
+                    echo ""
+                    print_info "$(msg DYNU_STEP6)"
+                    echo ""
+                    print_info "$(msg DYNU_STEP7)"
+                    echo ""
+                    print_info "$(msg DYNU_STEP8 "$EXTERNAL_IP")"
+                    echo ""
+                    print_info "$(msg DYNU_STEP9)"
+                    echo ""
+                    print_info "$(msg DYNU_STEP10)"
+                    echo ""
                     break
                 elif [[ "$REPLY" =~ ^[Nn]$ ]]; then
-                    while true; do
-                        read -p "$(msg ENTER_DOMAIN)" -r
-                        if [[ "$REPLY" =~ ^[Qq]$ ]]; then
-                            ENABLE_HTTPS=false
-                            break
-                        fi
-                        DOMAIN="$REPLY"
-                        if [ -z "$DOMAIN" ]; then
-                            print_error "$(msg DOMAIN_EMPTY)"
-                            echo ""
-                            continue
-                        fi
-                        if ! echo "$DOMAIN" | grep -qE '^[a-zA-Z0-9\.-]+\.[a-zA-Z]{2,}$'; then
-                            print_error "$(msg DOMAIN_INVALID)"
-                            echo ""
-                            continue
-                        fi
-                        break
-                    done
                     break
                 fi
+            done
+        fi
+
+        DOMAIN=""
+        if [ "$ENABLE_HTTPS" = true ]; then
+            while true; do
+                read -p "$(msg ENTER_DOMAIN)" -r
+                if [[ "$REPLY" =~ ^[Qq]$ ]]; then
+                    ENABLE_HTTPS=false
+                    break
+                fi
+                DOMAIN="$REPLY"
+                if [ -z "$DOMAIN" ]; then
+                    print_error "$(msg DOMAIN_EMPTY)"
+                    echo ""
+                    continue
+                fi
+                if ! echo "$DOMAIN" | grep -qE '^[a-zA-Z0-9\.-]+\.[a-zA-Z]{2,}$'; then
+                    print_error "$(msg DOMAIN_INVALID)"
+                    echo ""
+                    continue
+                fi
+                break
             done
         fi
     fi
@@ -1580,7 +1568,7 @@ main() {
         
         if [ "$DNS_RESOLVED" = false ]; then
             print_warning "$(msg DNS_VERIFY_FAILED)"
-            print_warning "$(msg DNS_DUCKDNS_NOTE)"
+            print_warning "$(msg DNS_DYNU_NOTE)"
             print_warning "$(msg DNS_PROPAGATION_NOTE)"
             print_info "$(msg CONTINUE_WITHOUT_HTTPS)"
             ENABLE_HTTPS=false
