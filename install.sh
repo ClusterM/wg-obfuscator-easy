@@ -411,7 +411,11 @@ msg() {
 trap 'print_error "$(msg INSTALL_FAILED $LINENO)"' ERR INT TERM
 
 # Configuration
-IMAGE_NAME="docker.io/clustermeerkat/wg-obf-easy:latest"
+TAG="latest"
+if [ ! -z "$1" ]; then
+    TAG="$1"
+fi
+IMAGE_NAME="docker.io/clustermeerkat/wg-obf-easy:$TAG"
 CONTAINER_NAME="wg-obf-easy"
 # Use root's home directory for config (since we run as root)
 CONFIG_DIR="/root/.wg-obf-easy"
