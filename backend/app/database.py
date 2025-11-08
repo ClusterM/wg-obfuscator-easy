@@ -198,27 +198,47 @@ def set_config_value(key: str, value: Any) -> None:
         """, (key, value_str, now))
 
 
-def get_grafana_token() -> Optional[str]:
-    """Get Grafana token from database"""
-    token = get_config_value("grafana_token")
+def get_metrics_token() -> Optional[str]:
+    """Get metrics token from database (fallback to legacy grafana token key)"""
+    token = get_config_value("metrics_token")
+    legacy_token = None
+
+    if not token:
+        legacy_token = get_config_value("grafana_token")
+        token = legacy_token
+
     if token:
         # Ensure token is clean (strip whitespace and remove any newlines/spaces)
         token = str(token).strip().replace('\n', '').replace('\r', '').replace(' ', '')
-        return token if token else None
+        if token:
+            # If token came from legacy key, migrate to new key
+            if legacy_token:
+                set_config_value("metrics_token", token)
+                with get_db() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("DELETE FROM config WHERE key = ?", ("grafana_token",))
+                    conn.commit()
+            return token
     return None
 
 
-def set_grafana_token(token: str) -> None:
-    """Set Grafana token in database"""
+def set_metrics_token(token: str) -> None:
+    """Set metrics token in database"""
     # Strip whitespace and ensure token is clean
     token = token.strip().replace('\n', '').replace('\r', '').replace(' ', '')
-    set_config_value("grafana_token", token)
-
-
-def delete_grafana_token() -> None:
-    """Delete Grafana token from database"""
+    set_config_value("metrics_token", token)
+    # Remove legacy key if present
     with get_db() as conn:
         cursor = conn.cursor()
+        cursor.execute("DELETE FROM config WHERE key = ?", ("grafana_token",))
+        conn.commit()
+
+
+def delete_metrics_token() -> None:
+    """Delete metrics token from database"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM config WHERE key = ?", ("metrics_token",))
         cursor.execute("DELETE FROM config WHERE key = ?", ("grafana_token",))
 
 

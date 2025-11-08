@@ -52,11 +52,11 @@ def require_auth(f):
     return decorated_function
 
 
-def require_auth_or_grafana(f):
-    """Decorator to require authentication (JWT token or Grafana token)"""
+def require_auth_or_metrics(f):
+    """Decorator to require authentication (JWT token or metrics token)"""
     from functools import wraps
     from ..config.constants import AUTH_ENABLED
-    from ..database import get_grafana_token
+    from ..database import get_metrics_token
     
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -80,14 +80,14 @@ def require_auth_or_grafana(f):
             logger.error(f"Error parsing authorization header: {e}")
             return jsonify({"error": "Invalid authorization header format"}), 401
         
-        # Check Grafana token first
-        grafana_token = get_grafana_token()
-        if grafana_token:
+        # Check metrics token first
+        metrics_token = get_metrics_token()
+        if metrics_token:
             # Normalize both tokens for comparison
-            grafana_token_clean = grafana_token.strip().replace('\n', '').replace('\r', '').replace(' ', '')
+            metrics_token_clean = metrics_token.strip().replace('\n', '').replace('\r', '').replace(' ', '')
             token_clean = token.strip().replace('\n', '').replace('\r', '').replace(' ', '')
-            if token_clean == grafana_token_clean:
-                logger.debug("Grafana token authentication successful")
+            if token_clean == metrics_token_clean:
+                logger.debug("Metrics token authentication successful")
                 return f(*args, **kwargs)
         
         # Check JWT token
@@ -434,299 +434,178 @@ def clear_client_all_time_stats(username):
         return jsonify({"error": str(e)}), 500
 
 
-@bp.route('/grafana/clients/<username>/traffic', methods=['GET'])
-@require_auth_or_grafana
-def get_grafana_traffic_data(username):
-    """
-    Get traffic statistics for Grafana JSON API data source.
-    Returns data in Grafana-compatible format.
-    
-    Query parameters:
-    - from: start time (Unix timestamp in seconds)
-    - to: end time (Unix timestamp in seconds)
-    - interval: aggregation interval in seconds (optional)
-    """
+def _collect_wireguard_peer_map(config_manager, wg_manager):
+    """Build a map of username -> peer stats from WireGuard"""
+    peer_map = {}
     try:
-        collector = current_app.traffic_stats_collector
-        if not collector:
-            return jsonify({"error": "Traffic statistics collector not available"}), 503
-        
-        config_manager = current_app.config_manager
-        if not config_manager.has_client(username):
-            return jsonify({"error": "Client not found"}), 404
-        
-        # Get time range from query parameters (Grafana uses 'from' and 'to')
-        from_time = request.args.get('from', type=int)
-        to_time = request.args.get('to', type=int)
-        interval = request.args.get('interval', type=int)  # optional aggregation interval
-        
-        # Default to last hour if not specified
-        if to_time is None:
-            to_time = int(time.time())
-        if from_time is None:
-            from_time = to_time - 3600
-        
-        # Convert to seconds if provided in milliseconds (Grafana sometimes sends ms)
-        if from_time > 10000000000:  # Likely milliseconds
-            from_time = from_time // 1000
-        if to_time > 10000000000:
-            to_time = to_time // 1000
-        
-        # Validate time range
-        if from_time >= to_time:
-            return jsonify({"error": "from must be less than to"}), 400
-        
-        # Maximum range: 30 days
-        if to_time - from_time > 30 * 24 * 3600:
-            return jsonify({"error": "Time range cannot exceed 30 days"}), 400
-        
-        # Get traffic stats
-        stats = collector.get_traffic_stats(username, from_time, to_time, interval)
-        
-        # Convert to Grafana format: array of series with datapoints
-        # Each datapoint is [value, timestamp_in_milliseconds]
-        received_points = []
-        sent_points = []
-        
-        for point in stats:
-            # Calculate speeds (bytes per second)
-            time_interval = interval if interval else 5  # default 5 seconds
-            received_speed = point.get('rx_bytes_delta', 0) / time_interval
-            sent_speed = point.get('tx_bytes_delta', 0) / time_interval
-            
-            # Convert timestamp to milliseconds for Grafana
-            timestamp_ms = point.get('timestamp', 0) * 1000
-            
-            received_points.append([received_speed, timestamp_ms])
-            sent_points.append([sent_speed, timestamp_ms])
-        
-        # Return in Grafana format
-        return jsonify([
-            {
-                "target": f"{username} - Received",
-                "datapoints": received_points
-            },
-            {
-                "target": f"{username} - Sent",
-                "datapoints": sent_points
-            }
-        ])
+        from ..wireguard.stats import WireGuardStats
+
+        stats_collector = WireGuardStats(wg_manager.wg_interface)
+        stats = stats_collector.get_stats(config_manager.clients)
+        if stats and stats.get("peers"):
+            for peer in stats["peers"]:
+                username = peer.get("client_name")
+                if username:
+                    peer_map[username] = peer
     except Exception as e:
-        logger.error(f"Error getting Grafana traffic data for {username}: {e}")
-        return jsonify({"error": str(e)}), 500
+        logger.warning(f"Failed to collect WireGuard peer stats: {e}")
+    return peer_map
 
 
-@bp.route('/grafana/clients/<username>/traffic-bytes', methods=['GET'])
-@require_auth_or_grafana
-def get_grafana_traffic_bytes(username):
-    """
-    Get total traffic (bytes) for Grafana JSON API data source.
-    Returns cumulative byte counts instead of speeds.
-    """
-    try:
-        collector = current_app.traffic_stats_collector
-        if not collector:
-            return jsonify({"error": "Traffic statistics collector not available"}), 503
-        
-        config_manager = current_app.config_manager
-        if not config_manager.has_client(username):
-            return jsonify({"error": "Client not found"}), 404
-        
-        from_time = request.args.get('from', type=int)
-        to_time = request.args.get('to', type=int)
-        interval = request.args.get('interval', type=int)
-        
-        if to_time is None:
-            to_time = int(time.time())
-        if from_time is None:
-            from_time = to_time - 3600
-        
-        if from_time > 10000000000:
-            from_time = from_time // 1000
-        if to_time > 10000000000:
-            to_time = to_time // 1000
-        
-        if from_time >= to_time:
-            return jsonify({"error": "from must be less than to"}), 400
-        
-        stats = collector.get_traffic_stats(username, from_time, to_time, interval)
-        
-        received_points = []
-        sent_points = []
-        
-        for point in stats:
-            timestamp_ms = point.get('timestamp', 0) * 1000
-            received_bytes = point.get('rx_bytes_delta', 0)
-            sent_bytes = point.get('tx_bytes_delta', 0)
-            
-            received_points.append([received_bytes, timestamp_ms])
-            sent_points.append([sent_bytes, timestamp_ms])
-        
-        return jsonify([
-            {
-                "target": f"{username} - Received Bytes",
-                "datapoints": received_points
-            },
-            {
-                "target": f"{username} - Sent Bytes",
-                "datapoints": sent_points
-            }
-        ])
-    except Exception as e:
-        logger.error(f"Error getting Grafana traffic bytes for {username}: {e}")
-        return jsonify({"error": str(e)}), 500
+def _sanitize_metric_label(value: str) -> str:
+    """Sanitize metric label to contain only safe characters"""
+    import re
+
+    if not value:
+        return ""
+    return re.sub(r'[^a-zA-Z0-9_-]', '_', value)
 
 
-@bp.route('/grafana/clients', methods=['GET'])
-@require_auth_or_grafana
-def get_grafana_clients_list():
-    """
-    Get list of all clients for Grafana query builder.
-    Returns list of available clients.
-    """
-    try:
-        config_manager = current_app.config_manager
-        clients = config_manager.clients
-        
-        # Return list of client usernames
-        return jsonify([
-            {"text": username, "value": username}
-            for username in clients.keys()
-        ])
-    except Exception as e:
-        logger.error(f"Error getting Grafana clients list: {e}")
-        return jsonify({"error": str(e)}), 500
+def _format_plain_metrics(lines):
+    """Helper to return text/plain metrics"""
+    body = "\n".join(lines)
+    if not body.endswith("\n"):
+        body += "\n"
+    return Response(body, mimetype='text/plain')
 
 
-@bp.route('/grafana/status', methods=['GET'])
-@require_auth_or_grafana
-def get_grafana_status():
-    """
-    Get server status metrics for Grafana.
-    Returns various server metrics as time series.
-    """
+@bp.route('/metrics/system', methods=['GET'])
+@require_auth_or_metrics
+def get_metrics_system():
+    """Return system level Prometheus metrics"""
     try:
         config_manager = current_app.config_manager
         wg_manager = current_app.wg_manager
         obfuscator_manager = current_app.obfuscator_manager
-        
-        from ..wireguard.stats import WireGuardStats
-        
-        config = config_manager.main
+
         wg_status = wg_manager.status()
-        obfuscator_status = obfuscator_manager.status(config.get('obfuscation', False))
-        
-        # Count connected clients
-        connected_clients_count = 0
-        if wg_status["running"]:
-            try:
-                stats_collector = WireGuardStats(wg_manager.wg_interface)
-                stats = stats_collector.get_stats(config_manager.clients)
-                if stats and stats.get("peers"):
-                    connected_clients_count = sum(
-                        1 for peer in stats["peers"] 
-                        if peer.get("is_connected", False)
-                    )
-            except Exception:
-                pass
-        
-        current_time_ms = int(time.time() * 1000)
-        
-        # Return metrics as time series
-        return jsonify([
-            {
-                "target": "Total Clients",
-                "datapoints": [[len(config_manager.clients), current_time_ms]]
-            },
-            {
-                "target": "Connected Clients",
-                "datapoints": [[connected_clients_count, current_time_ms]]
-            },
-            {
-                "target": "WireGuard Running",
-                "datapoints": [[1 if wg_status["running"] else 0, current_time_ms]]
-            },
-            {
-                "target": "Obfuscator Enabled",
-                "datapoints": [[1 if obfuscator_status.get("enabled", False) else 0, current_time_ms]]
-            },
-            {
-                "target": "Obfuscator Running",
-                "datapoints": [[1 if obfuscator_status.get("running", False) else 0, current_time_ms]]
-            }
-        ])
+        obfuscator_status = obfuscator_manager.status(
+            config_manager.main.get('obfuscation', False)
+        )
+
+        peer_map = _collect_wireguard_peer_map(config_manager, wg_manager)
+        connected_clients = sum(
+            1 for peer in peer_map.values() if peer.get('is_connected', False)
+        )
+
+        lines = [
+            f"running{{wireguard}} {1 if wg_status.get('running') else 0}",
+            f"running{{obfuscator}} {1 if obfuscator_status.get('running') else 0}",
+            f"clients{{total}} {len(config_manager.clients)}",
+            f"clients{{connected}} {connected_clients}",
+        ]
+
+        return _format_plain_metrics(lines)
     except Exception as e:
-        logger.error(f"Error getting Grafana status: {e}")
+        logger.error(f"Error generating system metrics: {e}")
         return jsonify({"error": str(e)}), 500
 
 
-@bp.route('/grafana/token', methods=['GET'])
-@require_auth
-def get_grafana_token_endpoint():
-    """
-    Get current Grafana token.
-    Returns existing token if it exists, otherwise returns null.
-    """
+@bp.route('/metrics/clients/<username>', methods=['GET'])
+@require_auth_or_metrics
+def get_metrics_client(username):
+    """Return Prometheus metrics for a single client"""
     try:
-        from ..database import get_grafana_token
-        
-        token = get_grafana_token()
-        
-        if token:
-            logger.info("Retrieved existing Grafana token")
-            return jsonify({
-                "token": token
-            })
-        else:
-            logger.info("No Grafana token found")
-            return jsonify({
-                "token": None
-            })
+        config_manager = current_app.config_manager
+        client_data = config_manager.get_client(username)
+        if not client_data:
+            return jsonify({"error": "Client not found"}), 404
+
+        wg_manager = current_app.wg_manager
+        peer_map = _collect_wireguard_peer_map(config_manager, wg_manager)
+        peer_stats = peer_map.get(username, {})
+
+        label = _sanitize_metric_label(username)
+        connected = 1 if peer_stats.get('is_connected') else 0
+        rx_bytes = int(client_data.get('all_time_rx_bytes', 0) or 0)
+        tx_bytes = int(client_data.get('all_time_tx_bytes', 0) or 0)
+
+        lines = [
+            f"connected{{{label}}} {connected}",
+            f"tx{{{label}}} {tx_bytes}",
+            f"rx{{{label}}} {rx_bytes}",
+        ]
+
+        return _format_plain_metrics(lines)
     except Exception as e:
-        logger.error(f"Error getting Grafana token: {e}")
+        logger.error(f"Error generating metrics for client {username}: {e}")
         return jsonify({"error": str(e)}), 500
 
 
-@bp.route('/grafana/token', methods=['POST'])
+@bp.route('/metrics/clients', methods=['GET'])
+@require_auth_or_metrics
+def get_metrics_clients():
+    """Return Prometheus metrics for all clients"""
+    try:
+        config_manager = current_app.config_manager
+        wg_manager = current_app.wg_manager
+        peer_map = _collect_wireguard_peer_map(config_manager, wg_manager)
+
+        lines = []
+        for username in sorted(config_manager.clients.keys()):
+            client_data = config_manager.get_client(username)
+            if not client_data:
+                continue
+
+            label = _sanitize_metric_label(username)
+            peer_stats = peer_map.get(username, {})
+            connected = 1 if peer_stats.get('is_connected') else 0
+            rx_bytes = int(client_data.get('all_time_rx_bytes', 0) or 0)
+            tx_bytes = int(client_data.get('all_time_tx_bytes', 0) or 0)
+
+            lines.extend([
+                f"connected{{{label}}} {connected}",
+                f"tx{{{label}}} {tx_bytes}",
+                f"rx{{{label}}} {rx_bytes}",
+            ])
+
+        return _format_plain_metrics(lines)
+    except Exception as e:
+        logger.error("Error generating metrics for all clients: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@bp.route('/metrics/token', methods=['GET'])
 @require_auth
-def generate_grafana_token_endpoint():
-    """
-    Generate new Grafana token for API access.
-    Only one token can exist at a time. When generating a new token, the old one is automatically replaced.
-    """
+def get_metrics_token_endpoint():
+    """Get current metrics token"""
+    try:
+        from ..database import get_metrics_token
+
+        token = get_metrics_token()
+        return jsonify({"token": token})
+    except Exception as e:
+        logger.error(f"Error getting metrics token: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@bp.route('/metrics/token', methods=['POST'])
+@require_auth
+def generate_metrics_token_endpoint():
+    """Generate a new metrics token (replaces existing token)"""
     try:
         import secrets
-        from ..database import set_grafana_token
-        
-        # Generate random token (32 bytes = 64 hex characters)
+        from ..database import set_metrics_token
+
         token = secrets.token_hex(32)
-        set_grafana_token(token)
-        logger.info("Generated new Grafana token (old token was replaced)")
-        
-        return jsonify({
-            "token": token
-        })
+        set_metrics_token(token)
+        logger.info("Generated new metrics token (replaced previous value)")
+        return jsonify({"token": token})
     except Exception as e:
-        logger.error(f"Error generating Grafana token: {e}")
+        logger.error(f"Error generating metrics token: {e}")
         return jsonify({"error": str(e)}), 500
 
 
-@bp.route('/grafana/token', methods=['DELETE'])
+@bp.route('/metrics/token', methods=['DELETE'])
 @require_auth
-def delete_grafana_token_endpoint():
-    """
-    Delete Grafana token.
-    """
+def delete_metrics_token_endpoint():
+    """Delete the metrics token"""
     try:
-        from ..database import delete_grafana_token
-        
-        delete_grafana_token()
-        logger.info("Deleted Grafana token")
-        
-        return jsonify({
-            "message": "Grafana token deleted successfully"
-        })
-    except Exception as e:
-        logger.error(f"Error deleting Grafana token: {e}")
-        return jsonify({"error": str(e)}), 500
+        from ..database import delete_metrics_token
 
+        delete_metrics_token()
+        logger.info("Deleted metrics token")
+        return jsonify({"message": "Metrics token deleted successfully"})
+    except Exception as e:
+        logger.error(f"Error deleting metrics token: {e}")
+        return jsonify({"error": str(e)}), 500

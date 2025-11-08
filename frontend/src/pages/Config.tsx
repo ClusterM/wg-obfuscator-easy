@@ -40,10 +40,10 @@ export default function Config() {
   const [showRestartModal, setShowRestartModal] = useState(false);
   const [restartStatus, setRestartStatus] = useState<'waiting' | 'checking' | 'success' | 'error'>('waiting');
 
-  // Grafana token state
-  const [grafanaToken, setGrafanaToken] = useState<string | null>(null);
-  const [generatingGrafanaToken, setGeneratingGrafanaToken] = useState(false);
-  const [showGrafanaInstructions, setShowGrafanaInstructions] = useState(false);
+  // Metrics token state
+  const [metricsToken, setMetricsToken] = useState<string | null>(null);
+  const [generatingMetricsToken, setGeneratingMetricsToken] = useState(false);
+  const [showMetricsInstructions, setShowMetricsInstructions] = useState(false);
 
   const copyTextToClipboard = async (text: string) => {
     try {
@@ -114,15 +114,15 @@ export default function Config() {
     }
   };
 
-  const loadGrafanaToken = async () => {
+  const loadMetricsToken = async () => {
     try {
-      const data = await api.getGrafanaToken();
+      const data = await api.getMetricsToken();
       if (data.token) {
-        setGrafanaToken(data.token);
-        setShowGrafanaInstructions(true);
+        setMetricsToken(data.token);
+        setShowMetricsInstructions(true);
       }
     } catch (err: any) {
-      console.error('Failed to load Grafana token:', err);
+      console.error('Failed to load metrics token:', err);
     }
   };
 
@@ -176,7 +176,7 @@ export default function Config() {
     loadConfig();
     loadCredentials();
     loadTimezone();
-    loadGrafanaToken();
+    loadMetricsToken();
   }, []);
 
   const handleSave = async () => {
@@ -278,43 +278,43 @@ export default function Config() {
     }
   };
 
-  const handleGenerateGrafanaToken = async () => {
+  const handleGenerateMetricsToken = async () => {
     try {
-      setGeneratingGrafanaToken(true);
+      setGeneratingMetricsToken(true);
       setError('');
       setSuccess('');
-      const data = await api.generateGrafanaToken();
-      setGrafanaToken(data.token);
-      setShowGrafanaInstructions(true);
-      setSuccess(t('config.grafanaTokenGenerated'));
+      const data = await api.generateMetricsToken();
+      setMetricsToken(data.token);
+      setShowMetricsInstructions(true);
+      setSuccess(t('config.metricsTokenGenerated'));
     } catch (err: any) {
       setError(err.message || t('errors.serverError'));
     } finally {
-      setGeneratingGrafanaToken(false);
+      setGeneratingMetricsToken(false);
     }
   };
 
-  const handleDeleteGrafanaToken = async () => {
-    if (!confirm(t('config.confirmDeleteGrafanaToken'))) {
+  const handleDeleteMetricsToken = async () => {
+    if (!confirm(t('config.confirmDeleteMetricsToken'))) {
       return;
     }
 
     try {
       setError('');
       setSuccess('');
-      await api.deleteGrafanaToken();
-      setGrafanaToken(null);
-      setShowGrafanaInstructions(false);
-      setSuccess(t('config.grafanaTokenDeleted'));
+      await api.deleteMetricsToken();
+      setMetricsToken(null);
+      setShowMetricsInstructions(false);
+      setSuccess(t('config.metricsTokenDeleted'));
     } catch (err: any) {
       setError(err.message || t('errors.serverError'));
     }
   };
 
-  const handleCopyGrafanaToken = async () => {
-    if (!grafanaToken) return;
+  const handleCopyMetricsToken = async () => {
+    if (!metricsToken) return;
     
-    const copied = await copyTextToClipboard(grafanaToken);
+    const copied = await copyTextToClipboard(metricsToken);
     if (copied) {
       setSuccess(t('config.tokenCopied'));
       setTimeout(() => setSuccess(''), 2000);
@@ -494,107 +494,100 @@ export default function Config() {
         </div>
       </div>
 
-      <div className="config-section">
-        <h2>{t('config.grafanaToken')}</h2>
-        <div className="field-description">{t('config.grafanaTokenDescription')}</div>
-        
-        {grafanaToken ? (
-          <>
-            <div className="form-group">
-              <label>{t('config.grafanaToken')}</label>
-              <div className="input-with-button">
-                <input
-                  type="text"
-                  value={grafanaToken}
-                  readOnly
-                  className="mono"
-                  style={{ fontFamily: 'monospace', fontSize: '0.9rem' }}
-                />
+        <div className="config-section">
+          <h2>{t('config.metricsToken')}</h2>
+          <div className="field-description">{t('config.metricsTokenDescription')}</div>
+
+          {metricsToken ? (
+            <>
+              <div className="form-group">
+                <label>{t('config.metricsToken')}</label>
+                <div className="input-with-button">
+                  <input
+                    type="text"
+                    value={metricsToken}
+                    readOnly
+                    className="mono"
+                    style={{ fontFamily: 'monospace', fontSize: '0.9rem' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCopyMetricsToken}
+                    className="btn-secondary"
+                    title={t('config.copyToken')}
+                  >
+                    {t('config.copyToken')}
+                  </button>
+                </div>
+              </div>
+
+              {showMetricsInstructions && (() => {
+                const baseUrl = `${window.location.origin}${(window as any).__WEB_PREFIX__ || ''}/api/metrics`;
+                const endpoints = [
+                  { url: `${baseUrl}/system`, label: t('config.metricsEndpointSystem') },
+                  { url: `${baseUrl}/clients`, label: t('config.metricsEndpointClients') },
+                  { url: `${baseUrl}/clients/{username}`, label: t('config.metricsEndpointClient') },
+                ];
+
+                return (
+                  <div className="metrics-instructions">
+                    <h3>{t('config.metricsTokenInstructions')}</h3>
+                    <div className="instructions-content">
+                      <ol style={{ margin: '0 0 1rem 0', paddingLeft: '1.5rem', lineHeight: '1.8' }}>
+                        <li>{t('config.metricsTokenInstructionsStep1')}</li>
+                        <li>
+                          {t('config.metricsTokenInstructionsStep2')}
+                          <ul style={{ marginTop: '0.5rem', marginBottom: '0.5rem' }}>
+                            {endpoints.map((endpoint, index) => (
+                              <li key={index} style={{ marginBottom: '0.5rem' }}>
+                                <div className="url-copy-container">
+                                  <span className="url-label">{endpoint.label}:</span>
+                                  <code className="url-code">{endpoint.url}</code>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopyUrl(endpoint.url)}
+                                    className="btn-copy-url"
+                                    title={t('common.copy')}
+                                  >
+                                    {t('common.copy')}
+                                  </button>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        </li>
+                        <li>{t('config.metricsTokenInstructionsStep3')}</li>
+                      </ol>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="form-actions form-actions-space-between">
                 <button
-                  type="button"
-                  onClick={handleCopyGrafanaToken}
-                  className="btn-secondary"
-                  title={t('config.copyToken')}
+                  onClick={handleGenerateMetricsToken}
+                  disabled={generatingMetricsToken}
+                  className="btn-warning"
                 >
-                  {t('config.copyToken')}
+                  {generatingMetricsToken ? t('common.loading') : t('config.generateMetricsToken')}
+                </button>
+                <button onClick={handleDeleteMetricsToken} className="btn-danger">
+                  {t('config.deleteMetricsToken')}
                 </button>
               </div>
-            </div>
-
-            {showGrafanaInstructions && (() => {
-              const baseUrl = `${window.location.origin}${(window as any).__WEB_PREFIX__ || ''}/api/grafana`;
-              const endpoints = [
-                { url: `${baseUrl}/clients`, label: t('config.grafanaEndpointClients') },
-                { url: `${baseUrl}/status`, label: t('config.grafanaEndpointStatus') },
-                { url: `${baseUrl}/clients/{username}/traffic`, label: t('config.grafanaEndpointTraffic') },
-                { url: `${baseUrl}/clients/{username}/traffic-bytes`, label: t('config.grafanaEndpointTrafficBytes') },
-              ];
-
-              return (
-                <div className="grafana-instructions">
-                  <h3>{t('config.grafanaTokenInstructions')}</h3>
-                  <div className="instructions-content">
-                    <ol style={{ margin: '0 0 1rem 0', paddingLeft: '1.5rem', lineHeight: '1.8' }}>
-                      <li>{t('config.grafanaTokenInstructionsStep1')}</li>
-                      <li>{t('config.grafanaTokenInstructionsStep2')}</li>
-                      <li>
-                        {t('config.grafanaTokenInstructionsStep3')}
-                        <ul style={{ marginTop: '0.5rem', marginBottom: '0.5rem' }}>
-                          {endpoints.map((endpoint, index) => (
-                            <li key={index} style={{ marginBottom: '0.5rem' }}>
-                              <div className="url-copy-container">
-                                <span className="url-label">{endpoint.label}:</span>
-                                <code className="url-code">{endpoint.url}</code>
-                                <button
-                                  type="button"
-                                  onClick={() => handleCopyUrl(endpoint.url)}
-                                  className="btn-copy-url"
-                                  title={t('common.copy')}
-                                >
-                                  {t('common.copy')}
-                                </button>
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      </li>
-                      <li>{t('config.grafanaTokenInstructionsStep4')}</li>
-                      <li>{t('config.grafanaTokenInstructionsStep5')}</li>
-                      <li>{t('config.grafanaTokenInstructionsStep6')}</li>
-                    </ol>
-                  </div>
-                </div>
-              );
-            })()}
-
-            <div className="form-actions form-actions-space-between">
+            </>
+          ) : (
+            <div className="form-actions">
               <button
-                onClick={handleGenerateGrafanaToken}
-                disabled={generatingGrafanaToken}
+                onClick={handleGenerateMetricsToken}
+                disabled={generatingMetricsToken}
                 className="btn-warning"
               >
-                {generatingGrafanaToken ? t('common.loading') : t('config.generateGrafanaToken')}
-              </button>
-              <button
-                onClick={handleDeleteGrafanaToken}
-                className="btn-danger"
-              >
-                {t('config.deleteGrafanaToken')}
+                {generatingMetricsToken ? t('common.loading') : t('config.generateMetricsToken')}
               </button>
             </div>
-          </>
-        ) : (
-          <div className="form-actions">
-            <button
-              onClick={handleGenerateGrafanaToken}
-              disabled={generatingGrafanaToken}
-              className="btn-warning"
-            >
-              {generatingGrafanaToken ? t('common.loading') : t('config.generateGrafanaToken')}
-            </button>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
 
       <div className="config-section">
         <h2>{t('config.systemTimezone')}</h2>

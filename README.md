@@ -211,6 +211,7 @@ The application provides a complete REST API documented in OpenAPI 3.0 format. S
 - **Clients**: `/api/clients/*` - Client management (CRUD operations)
 - **Configuration**: `/api/config/*` - Server configuration
 - **Statistics**: `/api/stats/*` - Server and client statistics
+- **Metrics**: `/api/metrics/*` - Prometheus-compatible metrics (requires JWT or metrics token)
 - **Health**: `/health` - Health check endpoint
 
 ### Authentication
@@ -220,6 +221,16 @@ Most API endpoints require authentication. Include the JWT token in the `Authori
 ```
 Authorization: Bearer <your-jwt-token>
 ```
+
+#### Metrics Token
+
+Metrics endpoints under `/api/metrics/*` also accept a dedicated metrics token. Use the `/api/metrics/token` resource to manage it:
+
+- `GET /api/metrics/token` — returns the current token (or `null` if not set)
+- `POST /api/metrics/token` — generates a new token, replacing the previous one
+- `DELETE /api/metrics/token` — deletes the token
+
+Include the token in Prometheus scrape jobs via the standard `Authorization: Bearer <token>` header.
 
 ### Rate Limiting
 

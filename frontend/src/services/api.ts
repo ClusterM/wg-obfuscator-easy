@@ -136,19 +136,19 @@ class ApiService {
     return response.data;
   }
 
-  // Grafana endpoints
-  async getGrafanaToken() {
-    const response = await this.client.get('/grafana/token');
+  // Metrics endpoints
+  async getMetricsToken() {
+    const response = await this.client.get('/metrics/token');
     return response.data;
   }
 
-  async generateGrafanaToken() {
-    const response = await this.client.post('/grafana/token');
+  async generateMetricsToken() {
+    const response = await this.client.post('/metrics/token');
     return response.data;
   }
 
-  async deleteGrafanaToken() {
-    const response = await this.client.delete('/grafana/token');
+  async deleteMetricsToken() {
+    const response = await this.client.delete('/metrics/token');
     return response.data;
   }
 

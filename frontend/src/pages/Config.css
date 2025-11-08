@@ -317,8 +317,8 @@
   gap: 0.5rem;
 }
 
-/* Grafana Token Instructions */
-.grafana-instructions {
+/* Metrics Token Instructions */
+.metrics-instructions {
   margin-top: 1.5rem;
   padding: 1.5rem;
   background-color: #f8f9fa;
@@ -326,7 +326,7 @@
   border-left: 4px solid #3498db;
 }
 
-.grafana-instructions h3 {
+.metrics-instructions h3 {
   margin-top: 0;
   margin-bottom: 1rem;
   color: #2c3e50;
