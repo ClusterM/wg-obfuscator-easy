@@ -1028,6 +1028,13 @@ components:
       properties:
         username:
           type: string
+        ip:
+          type: integer
+          description: Numeric host identifier (last octet) assigned to the client
+        ip_full:
+          type: string
+          format: ipv4
+          description: Full IPv4 address assigned to the client
         public_key:
           type: string
         private_key:
@@ -1040,7 +1047,7 @@ components:
         obfuscator_port:
           type: integer
           nullable: true
-          description: Custom obfuscator port
+          description: Custom obfuscator port (null means default)
         masking_type_override:
           type: string
           nullable: true
@@ -1048,8 +1055,9 @@ components:
           description: Override masking type for this client
         verbosity_level:
           type: string
+          nullable: true
           enum: [0, 1, 2, 3, 4]
-          description: Verbosity level
+          description: Obfuscator verbosity level for this client
         enabled:
           type: boolean
           description: Whether client is enabled
@@ -1058,13 +1066,21 @@ components:
           description: Whether client is currently connected
         latest_handshake:
           type: integer
-          description: Unix timestamp of last handshake
-        all_time_rx_bytes:
+          description: Unix timestamp of the last successful handshake
+        rx_bytes:
           type: integer
-          description: Total received bytes (all time)
-        all_time_tx_bytes:
+          description: Total bytes received from the server since the last restart
+        tx_bytes:
           type: integer
-          description: Total sent bytes (all time)
+          description: Total bytes sent to the server since the last restart
+        created_at:
+          type: string
+          format: date-time
+          description: Client creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
 
     ServerConfig:
       type: object
@@ -1175,22 +1191,25 @@ components:
         client_name:
           type: string
           nullable: true
+        endpoint:
+          type: string
+          nullable: true
+        allowed_ips:
+          type: string
         is_connected:
           type: boolean
         latest_handshake:
           type: integer
-          nullable: true
-          description: Unix timestamp of last handshake
-        rx_bytes:
+        transfer_rx_bytes:
           type: integer
-          description: Total received bytes
-        tx_bytes:
+          description: Bytes the client received from the server
+        transfer_tx_bytes:
           type: integer
-          description: Total sent bytes
+          description: Bytes the client sent to the server
         message:
           type: string
           nullable: true
-          description: Status message (e.g., "Client not currently connected")
+          description: Optional status message (e.g., when client data is unavailable)
 
   responses:
     BadRequest:
