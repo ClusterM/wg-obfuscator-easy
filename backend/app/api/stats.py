@@ -307,10 +307,10 @@ def get_metrics_system():
         )
 
         lines = [
-            f"running{{wireguard}} {1 if wg_status.get('running') else 0}",
-            f"running{{obfuscator}} {1 if obfuscator_status.get('running') else 0}",
-            f"clients{{total}} {len(config_manager.clients)}",
-            f"clients{{connected}} {connected_clients}",
+            f"service_running{{service=\"wireguard\"}} {1 if wg_status.get('running') else 0}",
+            f"service_running{{service=\"obfuscator\"}} {1 if obfuscator_status.get('running') else 0}",
+            f"wg_clients_connected {len(config_manager.clients)}",
+            f"wg_clients_configured {connected_clients}",
         ]
 
         return _format_plain_metrics(lines)
@@ -339,9 +339,9 @@ def get_metrics_client(username):
         tx_bytes = int(peer_stats.get('transfer_tx_bytes', 0) or 0)
 
         lines = [
-            f"connected{{{label}}} {connected}",
-            f"tx{{{label}}} {tx_bytes}",
-            f"rx{{{label}}} {rx_bytes}",
+            f"wg_client_connected{{client_id=\"{label}\"}} {connected}",
+            f"wg_client_tx_bytes_total{{client_id=\"{label}\"}} {tx_bytes}",
+            f"wg_client_rx_bytes_total{{client_id=\"{label}\"}} {rx_bytes}",
         ]
 
         return _format_plain_metrics(lines)
@@ -372,9 +372,9 @@ def get_metrics_clients():
             tx_bytes = int(peer_stats.get('transfer_tx_bytes', 0) or 0)
 
             lines.extend([
-                f"connected{{{label}}} {connected}",
-                f"tx{{{label}}} {tx_bytes}",
-                f"rx{{{label}}} {rx_bytes}",
+                f"wg_client_connected{{client_id=\"{label}\"}} {connected}",
+                f"wg_client_tx_bytes_total{{client_id=\"{label}\"}} {tx_bytes}",
+                f"wg_client_rx_bytes_total{{client_id=\"{label}\"}} {rx_bytes}",
             ])
 
         return _format_plain_metrics(lines)
