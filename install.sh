@@ -201,6 +201,8 @@ declare -A MSG_EN=(
     [SAVE_CREDENTIALS]="Save these credentials in a secure location!"
     [HTTPS_NOT_ENABLED]="HTTPS is not enabled. You can enable it later by running the script again."
     [ADMIN_RESET_FAILED]="Failed to update administrator credentials."
+    [ADMIN_RESET_SUCCESS]="Administrator credentials have been reset."
+    [CONTAINER_NOT_RUNNING]="Container %s is not running, can't reset administrator credentials."
     [ADMIN_NEW_LOGIN]="New login: admin"
     [ADMIN_NEW_PASSWORD]="New password: %s"
     [TOKENS_DELETED]="All active access tokens have been deleted. Users need to log in again."
@@ -374,6 +376,8 @@ declare -A MSG_RU=(
     [SAVE_CREDENTIALS]="Сохраните эти учётные данные в безопасном месте!"
     [HTTPS_NOT_ENABLED]="HTTPS не включён. Вы можете включить его позже, запустив скрипт снова."
     [ADMIN_RESET_FAILED]="Не удалось обновить учётные данные администратора."
+    [ADMIN_RESET_SUCCESS]="Учётные данные администратора сброшены."
+    [CONTAINER_NOT_RUNNING]="Контейнер %s не запущен, невозможно сбросить учётные данные администратора."
     [ADMIN_NEW_LOGIN]="Новый логин: admin"
     [ADMIN_NEW_PASSWORD]="Новый пароль: %s"
     [TOKENS_DELETED]="Все активные токены доступа удалены. Пользователям нужно войти заново."
@@ -936,14 +940,21 @@ reset_admin_credentials() {
     # Update database with new credentials
     local python_output
     local python_exit_code
+
+    # Verify Docker is running
+    if ! docker info >/dev/null 2>&1; then
+        print_error "$(msg DOCKER_NOT_RUNNING)"
+        return 1
+    fi
+
+    # Check if container is running
+    if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+        print_error "$(msg CONTAINER_NOT_RUNNING "$CONTAINER_NAME")"
+        return 1
+    fi
     
     python_output=$(docker exec "$CONTAINER_NAME" python3 reset-creds.py "$provided_password")
     python_exit_code=$?
-
-    # debug
-    echo "python_exit_code: $python_exit_code"
-    echo "python_output:"
-    echo "$python_output"
 
     if [ $python_exit_code -ne 0 ]; then
         print_error "$(msg ADMIN_RESET_FAILED)" >&2
@@ -1219,10 +1230,11 @@ main() {
     CONFIG_EXISTS=false
     KEEP_OLD_HOST_CONFIG=false
     OLD_APP_VERSION=""
+    NEW_PASSWORD=false
+    ADMIN_PASSWORD=$(generate_password)
     if [ -f "$CONFIG_FILE" ]; then
         OLD_APP_VERSION=$(get_app_version "$CONTAINER_NAME")
         CONFIG_EXISTS=true
-        ADMIN_PASSWORD=""
         while true; do
             read -p "$(msg OLD_CONFIG_FOUND)" -r
             if [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Yy]$ ]]; then
@@ -1233,12 +1245,31 @@ main() {
                 break
             fi
         done
+        while true; do
+            read -p "$(msg RESET_PASSWORD_PROMPT)" -r
+            if [[ "$REPLY" =~ ^[Yy]$ ]]; then
+                if reset_admin_credentials "$ADMIN_PASSWORD"; then
+                    # Function succeeded
+                    NEW_PASSWORD=true
+                    print_info "$(msg ADMIN_RESET_SUCCESS)"
+                    print_info "$(msg TOKENS_DELETED)"
+                    break
+                else
+                    # Function failed, show error and continue loop
+                    print_error "$(msg ADMIN_RESET_FAILED)"
+                    read -p "$(msg PRESS_ENTER)" || true
+                    # Continue loop to ask again
+                fi
+            elif [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Nn]$ ]]; then
+                ADMIN_PASSWORD=""
+                break
+            fi
+        done
         echo ""
     fi
     if [ "$KEEP_OLD_HOST_CONFIG" = false ]; then
         WEB_PREFIX="/$(generate_prefix)/"
     fi
-    ADMIN_PASSWORD=$(generate_password)
 
     # Detect OS
     detect_os
@@ -1621,27 +1652,6 @@ main() {
     fi
 
     finalize_firewall_changes
-
-    NEW_PASSWORD=false
-    if [ "$CONFIG_EXISTS" = true ]; then
-        while true; do
-            read -p "$(msg RESET_PASSWORD_PROMPT)" -r
-            if [[ "$REPLY" =~ ^[Yy]$ ]]; then
-                if reset_admin_credentials "$ADMIN_PASSWORD"; then
-                    # Function succeeded
-                    NEW_PASSWORD=true
-                    break
-                else
-                    # Function failed, show error and continue loop
-                    print_error "$(msg ADMIN_RESET_FAILED)"
-                    read -p "$(msg PRESS_ENTER)" || true
-                    # Continue loop to ask again
-                fi
-            elif [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Nn]$ ]]; then
-                break
-            fi
-        done
-    fi
 
     # Print summary
     echo ""
