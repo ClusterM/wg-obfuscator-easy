@@ -130,6 +130,7 @@ declare -A MSG_EN=(
     [APP_NOT_READY]="Application may not be fully ready yet. It should be available shortly."
     [GETTING_VERSION]="Getting application version..."
     [APP_VERSION]="Application version: v%s"
+    [INSTALLED_VERSION_OLD]="Previously installed version: v%s"
     [VERSION_UNKNOWN]="Could not determine application version"
     [ENABLE_HTTPS_PROMPT]="Do you want to enable HTTPS (recommended)? It requires a domain name, but you can use a free domain name. (Y/n): "
     [NEED_GUIDE_DUCKDNS]="Do you need a guide how to obtain a free domain name from DuckDNS? (Y/n/q): "
@@ -178,7 +179,6 @@ declare -A MSG_EN=(
     [INSTALL_COMPLETE]="================================================"
     [INSTALL_COMPLETE2]="Installation completed successfully!"
     [INSTALLED_VERSION]="Installed version: v%s"
-    [INSTALLED_VERSION_OLD]="Previously installed version: v%s"
     [FIREWALL_OPENED_PORTS]="Firewall (%s) opened ports: %s"
     [FIREWALL_MANUAL_PORTS]="Firewall ports requiring manual configuration: %s"
     [UFW_NOT_APPLIED]="UFW rules were not applied automatically because UFW is inactive."
@@ -296,6 +296,7 @@ declare -A MSG_RU=(
     [APP_NOT_READY]="Приложение может быть ещё не полностью готово. Оно должно стать доступным в ближайшее время."
     [GETTING_VERSION]="Получение версии приложения..."
     [APP_VERSION]="Версия приложения: v%s"
+    [INSTALLED_VERSION_OLD] = "Установленная до этого версия: v%s"
     [VERSION_UNKNOWN]="Не удалось определить версию приложения"
     [ENABLE_HTTPS_PROMPT]="Хотите включить HTTPS (рекомендуется)? Требуется доменное имя, но вы можете использовать бесплатный домен. (Y/n): "
     [NEED_GUIDE_DUCKDNS]="Нужна инструкция, как получить бесплатный домен от DuckDNS? (Y/n/q): "
@@ -344,7 +345,6 @@ declare -A MSG_RU=(
     [INSTALL_COMPLETE]="================================================"
     [INSTALL_COMPLETE2]="Установка успешно завершена!"
     [INSTALLED_VERSION]="Установленная версия: v%s"
-    [INSTALLED_VERSION_OLD]="Ранее установленная версия: v%s"
     [FIREWALL_OPENED_PORTS]="Файрвол (%s) открыл порты: %s"
     [FIREWALL_MANUAL_PORTS]="Порты файрвола, требующие ручной настройки: %s"
     [UFW_NOT_APPLIED]="Правила UFW не были применены автоматически, так как UFW неактивен."
@@ -891,10 +891,10 @@ install_caddy() {
 # Function to get application version from container
 get_app_version() {
     local container_name=$1
-    local version="unknown"
-
+    local version="unknown"    
+  
     # Try to get version via Python import
-    if [ "$version" = "unknown" ] && command_exists docker; then
+    if [ "$version" = "unknown" ]; then
         local python_version=$(docker exec "$container_name" python3 -c "import sys; sys.path.insert(0, '/app'); from version import VERSION; print(VERSION)" 2>/dev/null)
         if [ -n "$python_version" ]; then
             version="$python_version"
@@ -1182,11 +1182,11 @@ main() {
             fi
         done
         echo ""
-    else
-        # Generate random values
-        ADMIN_PASSWORD=$(generate_password)
+    fi
+    if [ "$KEEP_OLD_HOST_CONFIG" = false ]; then
         WEB_PREFIX="/$(generate_prefix)/"
     fi
+    ADMIN_PASSWORD=$(generate_password)
 
     # Detect OS
     detect_os
@@ -1364,6 +1364,9 @@ main() {
     print_info "$(msg GETTING_VERSION)"
     APP_VERSION=$(get_app_version "$CONTAINER_NAME")
     if [ "$APP_VERSION" != "unknown" ]; then
+        if [ -n "$OLD_APP_VERSION" ]; then
+            print_info "$(msg INSTALLED_VERSION_OLD "$OLD_APP_VERSION")"
+        fi
         print_info "$(msg APP_VERSION "$APP_VERSION")"
     else
         print_warning "$(msg VERSION_UNKNOWN)"
@@ -1572,9 +1575,6 @@ main() {
     print_info "$(msg INSTALL_COMPLETE)"
     print_info "$(msg INSTALL_COMPLETE2)"
     if [ -n "$APP_VERSION" ]; then
-        if [ -n "$OLD_APP_VERSION" ]; then
-            print_info "$(msg INSTALLED_VERSION_OLD "$OLD_APP_VERSION")"
-        fi
         print_info "$(msg INSTALLED_VERSION "$APP_VERSION")"
     fi
     print_info "$(msg INSTALL_COMPLETE)"
