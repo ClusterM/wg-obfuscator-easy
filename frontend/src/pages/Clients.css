@@ -304,6 +304,16 @@
   resize: vertical;
   background-color: #f8f9fa;
   box-sizing: border-box;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.copy-highlight-target {
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.copy-flash {
+  background-color: #d4edda !important;
+  box-shadow: 0 0 0 2px rgba(39, 174, 96, 0.4);
 }
 
 .config-textarea:disabled {

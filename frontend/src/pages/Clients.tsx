@@ -49,8 +49,19 @@ export default function Clients() {
   const clientSettingsErrorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [clientSettingsExpanded, setClientSettingsExpanded] = useState(false);
   const [qrCodeConfig, setQrCodeConfig] = useState<{ type: 'wireguard' | 'obfuscator', content: string } | null>(null);
-  const [copyMessageWireguard, setCopyMessageWireguard] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-  const [copyMessageObfuscator, setCopyMessageObfuscator] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const wireguardConfigRef = useRef<HTMLTextAreaElement | null>(null);
+  const obfuscatorConfigRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const flashElement = (element?: HTMLElement | null) => {
+    if (!element) return;
+    element.classList.remove('copy-flash');
+    // Force reflow to restart animation
+    void element.offsetWidth;
+    element.classList.add('copy-flash');
+    setTimeout(() => {
+      element.classList.remove('copy-flash');
+    }, 400);
+  };
 
   const loadClients = async (showLoading: boolean = false) => {
     try {
@@ -348,14 +359,13 @@ export default function Clients() {
   };
 
   const copyToClipboard = async (text: string, type: 'wireguard' | 'obfuscator') => {
-    const setMessage = type === 'wireguard' ? setCopyMessageWireguard : setCopyMessageObfuscator;
+    const targetRef = type === 'wireguard' ? wireguardConfigRef : obfuscatorConfigRef;
     
     try {
       // Try modern Clipboard API first
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(text);
-        setMessage({ type: 'success', text: t('common.copied') || 'Copied to clipboard' });
-        setTimeout(() => setMessage(null), 2000);
+        flashElement(targetRef.current);
         return;
       }
       
@@ -372,8 +382,7 @@ export default function Clients() {
       try {
         const successful = document.execCommand('copy');
         if (successful) {
-          setMessage({ type: 'success', text: t('common.copied') || 'Copied to clipboard' });
-          setTimeout(() => setMessage(null), 2000);
+          flashElement(targetRef.current);
         } else {
           throw new Error('execCommand failed');
         }
@@ -382,8 +391,8 @@ export default function Clients() {
       }
     } catch (err) {
       console.error('Failed to copy to clipboard:', err);
-      setMessage({ type: 'error', text: t('common.copyFailed') || 'Failed to copy to clipboard' });
-      setTimeout(() => setMessage(null), 3000);
+      setError(t('common.copyFailed') || 'Failed to copy to clipboard');
+      setTimeout(() => setError(''), 3000);
     }
   };
 
@@ -993,17 +1002,13 @@ export default function Clients() {
               ) : (
                 <div className="config-field-container">
                   <textarea
-                    className="config-textarea"
+                    className="config-textarea copy-highlight-target"
                     value={wireguardConfig}
                     readOnly
                     rows={10}
+                    ref={wireguardConfigRef}
                   />
                   <div className="config-actions">
-                    {copyMessageWireguard && (
-                      <div className={copyMessageWireguard.type === 'success' ? 'success-message' : 'error-message'} style={{ marginRight: 'auto' }}>
-                        {copyMessageWireguard.text}
-                      </div>
-                    )}
                     <button
                       onClick={() => setQrCodeConfig({ type: 'wireguard', content: wireguardConfig })}
                       className="btn-secondary btn-qr"
@@ -1030,18 +1035,14 @@ export default function Clients() {
               ) : (
                 <div className="config-field-container">
                   <textarea
-                    className="config-textarea"
+                    className="config-textarea copy-highlight-target"
                     value={obfuscatorConfig}
                     readOnly
                     disabled={!serverObfuscationEnabled || !selectedClient.obfuscator_port}
                     rows={10}
+                    ref={obfuscatorConfigRef}
                   />
                   <div className="config-actions">
-                    {copyMessageObfuscator && (
-                      <div className={copyMessageObfuscator.type === 'success' ? 'success-message' : 'error-message'} style={{ marginRight: 'auto' }}>
-                        {copyMessageObfuscator.text}
-                      </div>
-                    )}
                     <button
                       onClick={() => setQrCodeConfig({ type: 'obfuscator', content: obfuscatorConfig })}
                       className="btn-secondary btn-qr"
