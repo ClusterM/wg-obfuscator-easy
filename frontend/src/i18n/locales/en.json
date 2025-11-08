@@ -172,6 +172,7 @@
     "metricsEndpointSystem": "System metrics",
     "metricsEndpointClients": "All clients metrics",
     "metricsEndpointClient": "Single client metrics (replace {username})",
+    "metricsEndpointAll": "All metrics (system + all clients)",
     "copyToken": "Copy Token",
     "tokenCopied": "Token copied to clipboard",
     "systemTimezone": "System Timezone",

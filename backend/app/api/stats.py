@@ -287,6 +287,51 @@ def _format_plain_metrics(lines):
     return Response(body, mimetype='text/plain')
 
 
+def _get_system_metrics_lines(config_manager, wg_manager, obfuscator_manager, peer_map):
+    """Generate system-level Prometheus metrics lines"""
+    wg_status = wg_manager.status()
+    obfuscator_status = obfuscator_manager.status(
+        config_manager.main.get('obfuscation', False)
+    )
+    
+    connected_clients = sum(
+        1 for peer in peer_map.values() if peer.get('is_connected', False)
+    )
+    
+    return [
+        f"service_running{{service=\"wireguard\"}} {1 if wg_status.get('running') else 0}",
+        f"service_running{{service=\"obfuscator\"}} {1 if obfuscator_status.get('running') else 0}",
+        f"wg_clients_connected {len(config_manager.clients)}",
+        f"wg_clients_configured {connected_clients}",
+    ]
+
+
+def _get_client_metrics_lines(username, peer_map):
+    """Generate Prometheus metrics lines for a single client"""
+    label = _sanitize_metric_label(username)
+    peer_stats = peer_map.get(username, {})
+    connected = 1 if peer_stats.get('is_connected') else 0
+    rx_bytes = int(peer_stats.get('transfer_rx_bytes', 0) or 0)
+    tx_bytes = int(peer_stats.get('transfer_tx_bytes', 0) or 0)
+    
+    return [
+        f"wg_client_connected{{client_id=\"{label}\"}} {connected}",
+        f"wg_client_tx_bytes_total{{client_id=\"{label}\"}} {tx_bytes}",
+        f"wg_client_rx_bytes_total{{client_id=\"{label}\"}} {rx_bytes}",
+    ]
+
+
+def _get_all_clients_metrics_lines(config_manager, peer_map):
+    """Generate Prometheus metrics lines for all clients"""
+    lines = []
+    for username in sorted(config_manager.clients.keys()):
+        client_data = config_manager.get_client(username)
+        if not client_data:
+            continue
+        lines.extend(_get_client_metrics_lines(username, peer_map))
+    return lines
+
+
 @bp.route('/metrics/system', methods=['GET'])
 @require_auth_or_metrics
 def get_metrics_system():
@@ -295,24 +340,10 @@ def get_metrics_system():
         config_manager = current_app.config_manager
         wg_manager = current_app.wg_manager
         obfuscator_manager = current_app.obfuscator_manager
-
-        wg_status = wg_manager.status()
-        obfuscator_status = obfuscator_manager.status(
-            config_manager.main.get('obfuscation', False)
-        )
-
+        
         peer_map = _collect_wireguard_peer_map(config_manager, wg_manager)
-        connected_clients = sum(
-            1 for peer in peer_map.values() if peer.get('is_connected', False)
-        )
-
-        lines = [
-            f"service_running{{service=\"wireguard\"}} {1 if wg_status.get('running') else 0}",
-            f"service_running{{service=\"obfuscator\"}} {1 if obfuscator_status.get('running') else 0}",
-            f"wg_clients_connected {len(config_manager.clients)}",
-            f"wg_clients_configured {connected_clients}",
-        ]
-
+        lines = _get_system_metrics_lines(config_manager, wg_manager, obfuscator_manager, peer_map)
+        
         return _format_plain_metrics(lines)
     except Exception as e:
         logger.error(f"Error generating system metrics: {e}")
@@ -331,18 +362,7 @@ def get_metrics_client(username):
 
         wg_manager = current_app.wg_manager
         peer_map = _collect_wireguard_peer_map(config_manager, wg_manager)
-        peer_stats = peer_map.get(username, {})
-
-        label = _sanitize_metric_label(username)
-        connected = 1 if peer_stats.get('is_connected') else 0
-        rx_bytes = int(peer_stats.get('transfer_rx_bytes', 0) or 0)
-        tx_bytes = int(peer_stats.get('transfer_tx_bytes', 0) or 0)
-
-        lines = [
-            f"wg_client_connected{{client_id=\"{label}\"}} {connected}",
-            f"wg_client_tx_bytes_total{{client_id=\"{label}\"}} {tx_bytes}",
-            f"wg_client_rx_bytes_total{{client_id=\"{label}\"}} {rx_bytes}",
-        ]
+        lines = _get_client_metrics_lines(username, peer_map)
 
         return _format_plain_metrics(lines)
     except Exception as e:
@@ -358,28 +378,30 @@ def get_metrics_clients():
         config_manager = current_app.config_manager
         wg_manager = current_app.wg_manager
         peer_map = _collect_wireguard_peer_map(config_manager, wg_manager)
-
-        lines = []
-        for username in sorted(config_manager.clients.keys()):
-            client_data = config_manager.get_client(username)
-            if not client_data:
-                continue
-
-            label = _sanitize_metric_label(username)
-            peer_stats = peer_map.get(username, {})
-            connected = 1 if peer_stats.get('is_connected') else 0
-            rx_bytes = int(peer_stats.get('transfer_rx_bytes', 0) or 0)
-            tx_bytes = int(peer_stats.get('transfer_tx_bytes', 0) or 0)
-
-            lines.extend([
-                f"wg_client_connected{{client_id=\"{label}\"}} {connected}",
-                f"wg_client_tx_bytes_total{{client_id=\"{label}\"}} {tx_bytes}",
-                f"wg_client_rx_bytes_total{{client_id=\"{label}\"}} {rx_bytes}",
-            ])
+        lines = _get_all_clients_metrics_lines(config_manager, peer_map)
 
         return _format_plain_metrics(lines)
     except Exception as e:
         logger.error("Error generating metrics for all clients: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@bp.route('/metrics/all', methods=['GET'])
+@require_auth_or_metrics
+def get_metrics_all():
+    """Return all Prometheus metrics (system + all clients combined)"""
+    try:
+        config_manager = current_app.config_manager
+        wg_manager = current_app.wg_manager
+        obfuscator_manager = current_app.obfuscator_manager
+
+        peer_map = _collect_wireguard_peer_map(config_manager, wg_manager)
+        lines = _get_system_metrics_lines(config_manager, wg_manager, obfuscator_manager, peer_map)
+        lines.extend(_get_all_clients_metrics_lines(config_manager, peer_map))
+
+        return _format_plain_metrics(lines)
+    except Exception as e:
+        logger.error(f"Error generating all metrics: {e}")
         return jsonify({"error": str(e)}), 500
 
 

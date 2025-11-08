@@ -539,6 +539,7 @@ export default function Config() {
                   { url: `${baseUrl}/system`, label: t('config.metricsEndpointSystem') },
                   { url: `${baseUrl}/clients`, label: t('config.metricsEndpointClients') },
                   { url: `${baseUrl}/clients/{username}`, label: t('config.metricsEndpointClient') },
+                  { url: `${baseUrl}/all`, label: t('config.metricsEndpointAll') },
                 ];
 
                 return (

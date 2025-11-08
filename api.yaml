@@ -887,6 +887,27 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /api/metrics/all:
+    get:
+      tags:
+        - Statistics
+      summary: Get all metrics (system + all clients)
+      description: Return all Prometheus-formatted metrics combining system metrics and all client metrics in a single response.
+      operationId: getMetricsAll
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Prometheus-formatted metrics (system + all clients)
+          content:
+            text/plain:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /api/metrics/token:
     get:
       tags:

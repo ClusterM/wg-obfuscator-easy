@@ -172,6 +172,7 @@
     "metricsEndpointSystem": "Системные метрики",
     "metricsEndpointClients": "Метрики всех клиентов",
     "metricsEndpointClient": "Метрики конкретного клиента (замените {username})",
+    "metricsEndpointAll": "Все метрики (система + все клиенты)",
     "copyToken": "Копировать токен",
     "tokenCopied": "Токен скопирован в буфер обмена",
     "systemTimezone": "Часовой пояс системы",
