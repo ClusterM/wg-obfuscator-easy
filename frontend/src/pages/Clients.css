@@ -72,6 +72,8 @@
   border-radius: 4px;
   cursor: pointer;
   transition: background-color 0.2s;
+  min-width: auto;
+  width: auto;
 }
 
 .btn-small-add {
@@ -82,6 +84,11 @@
 .btn-danger {
   background-color: #e74c3c;
   color: white;
+}
+
+.btn-danger.btn-small {
+  min-width: auto;
+  width: auto;
 }
 
 .btn-danger:hover {
