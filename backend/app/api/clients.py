@@ -97,6 +97,8 @@ def get_clients():
                     
                     if peer_stats:
                         client_data['is_connected'] = peer_stats.get('is_connected', False)
+                        client_data['rx_bytes'] = peer_stats.get('transfer_rx_bytes', 0) or 0
+                        client_data['tx_bytes'] = peer_stats.get('transfer_tx_bytes', 0) or 0
                         new_handshake = peer_stats.get('latest_handshake', 0)
                         # Get stored value before updating
                         stored_handshake = client_data.get('latest_handshake', 0)
@@ -112,6 +114,8 @@ def get_clients():
                             pass
                     else:
                         client_data['is_connected'] = False
+                        client_data['rx_bytes'] = 0
+                        client_data['tx_bytes'] = 0
                         # Use stored latest_handshake from DB (already loaded in client_data)
                         # Don't overwrite it - it's already there from database
             else:
@@ -119,6 +123,8 @@ def get_clients():
                 # Use stored latest_handshake from DB (already loaded in client_data)
                 for client_data in clients.values():
                     client_data['is_connected'] = False
+                    client_data['rx_bytes'] = 0
+                    client_data['tx_bytes'] = 0
                     # latest_handshake already loaded from DB, just ensure it exists (default to 0 only if None)
                     if client_data.get('latest_handshake') is None:
                         client_data['latest_handshake'] = 0
@@ -127,6 +133,8 @@ def get_clients():
             # If stats collection fails, use stored latest_handshake from DB
             for client_data in clients.values():
                 client_data['is_connected'] = False
+                client_data['rx_bytes'] = 0
+                client_data['tx_bytes'] = 0
                 # latest_handshake already loaded from DB, just ensure it exists (default to 0 only if None)
                 if client_data.get('latest_handshake') is None:
                     client_data['latest_handshake'] = 0
@@ -207,6 +215,8 @@ def get_client(username):
             return jsonify({"error": "Client not found"}), 404
         
         client = config_manager.get_client(username).copy()
+        client['rx_bytes'] = 0
+        client['tx_bytes'] = 0
         
         # Add connection stats
         try:
@@ -222,6 +232,8 @@ def get_client(username):
                 for peer in stats["peers"]:
                     if peer.get("public_key") == public_key:
                         client['is_connected'] = peer.get('is_connected', False)
+                        client['rx_bytes'] = peer.get('transfer_rx_bytes', 0) or 0
+                        client['tx_bytes'] = peer.get('transfer_tx_bytes', 0) or 0
                         new_handshake = peer.get('latest_handshake', 0)
                         
                         # Only update latest_handshake if new value is greater (newer) than stored
@@ -237,10 +249,14 @@ def get_client(username):
                     # Use stored latest_handshake (already loaded from DB via get_client)
             else:
                 client['is_connected'] = False
+                client['rx_bytes'] = 0
+                client['tx_bytes'] = 0
                 # Use stored latest_handshake (already loaded from DB via get_client)
         except Exception as e:
             logger.warning(f"Failed to get connection stats for client: {e}")
             client['is_connected'] = False
+            client['rx_bytes'] = 0
+            client['tx_bytes'] = 0
             # Use stored latest_handshake (already loaded from DB via get_client)
         
         return jsonify(client)

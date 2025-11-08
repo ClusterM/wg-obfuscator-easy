@@ -33,7 +33,6 @@ from .obfuscator import ObfuscatorManager, ObfuscatorLogs
 from .clients import ClientManager
 from .api import create_app
 from .services import ServiceManager
-from .traffic_stats import TrafficStatsCollector
 from .utils import get_external_ip, get_external_port, initialize_config, check_and_set_system_timezone
 from .exceptions import ServiceError
 
@@ -123,13 +122,9 @@ def main():
     # Initialize client manager
     client_manager = ClientManager(config_manager, wg_manager, obfuscator_manager)
     
-    # Initialize traffic stats collector
-    traffic_stats_collector = TrafficStatsCollector(config_manager, wg_manager, collection_interval=5)
-    
     # Register cleanup handlers
     def cleanup():
         cleanup_on_exit(wg_manager, obfuscator_manager)
-        traffic_stats_collector.stop()
     
     atexit.register(cleanup)
     
@@ -170,8 +165,7 @@ def main():
         obfuscator_manager,
         token_manager,
         external_ip,
-        external_port,
-        traffic_stats_collector
+        external_port
     )
     
     # Handle SIGHUP for graceful restart (e.g., for SSL certificate reload)
@@ -185,9 +179,6 @@ def main():
         exit(0)
     
     signal.signal(signal.SIGHUP, sighup_handler)
-    
-    # Start traffic stats collector
-    traffic_stats_collector.start()
     
     # Get Flask configuration
     use_reloader = os.getenv("USE_RELOADER", "false").lower() == "true"

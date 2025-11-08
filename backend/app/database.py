@@ -105,15 +105,6 @@ def init_database() -> None:
             # Column already exists, ignore
             pass
         
-        # Add all-time traffic stats columns if they don't exist (migration)
-        try:
-            cursor.execute("ALTER TABLE clients ADD COLUMN all_time_rx_bytes INTEGER DEFAULT 0")
-            cursor.execute("ALTER TABLE clients ADD COLUMN all_time_tx_bytes INTEGER DEFAULT 0")
-            logger.info("Added all-time traffic stats columns to clients table")
-        except sqlite3.OperationalError:
-            # Columns already exist, ignore
-            pass
-        
         # Add verbosity_level column if it doesn't exist (migration)
         try:
             cursor.execute("ALTER TABLE clients ADD COLUMN verbosity_level TEXT")
@@ -131,18 +122,6 @@ def init_database() -> None:
             )
         """)
         
-        # Client traffic statistics table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS client_traffic_stats (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT NOT NULL,
-                timestamp INTEGER NOT NULL,
-                rx_bytes_delta INTEGER NOT NULL,
-                tx_bytes_delta INTEGER NOT NULL,
-                FOREIGN KEY(username) REFERENCES clients(username) ON DELETE CASCADE
-            )
-        """)
-        
         # Create indexes
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_tokens_created_at 
@@ -152,11 +131,6 @@ def init_database() -> None:
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_clients_enabled 
             ON clients(enabled)
-        """)
-        
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_traffic_stats_username_timestamp 
-            ON client_traffic_stats(username, timestamp)
         """)
         
         conn.commit()
@@ -282,11 +256,6 @@ def get_client(username: str) -> Optional[Dict[str, Any]]:
         # latest_handshake is already an integer from DB
         if 'latest_handshake' not in client:
             client['latest_handshake'] = 0
-        # all-time traffic stats
-        if 'all_time_rx_bytes' not in client:
-            client['all_time_rx_bytes'] = 0
-        if 'all_time_tx_bytes' not in client:
-            client['all_time_tx_bytes'] = 0
         return client
 
 
@@ -309,11 +278,6 @@ def get_all_clients() -> Dict[str, Dict[str, Any]]:
             # latest_handshake is already an integer from DB
             if 'latest_handshake' not in client:
                 client['latest_handshake'] = 0
-            # all-time traffic stats
-            if 'all_time_rx_bytes' not in client:
-                client['all_time_rx_bytes'] = 0
-            if 'all_time_tx_bytes' not in client:
-                client['all_time_tx_bytes'] = 0
             clients[username] = client
         
         return clients

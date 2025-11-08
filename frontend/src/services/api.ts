@@ -195,15 +195,6 @@ class ApiService {
     return response.data;
   }
 
-  async getAllTimeTrafficStats(username: string): Promise<any> {
-    const response = await this.client.get(`/clients/${username}/traffic-stats/all-time`);
-    return response.data;
-  }
-
-  async clearClientAllTimeStats(username: string): Promise<void> {
-    await this.client.post(`/clients/${username}/traffic-stats/clear-all-time`);
-  }
-
   async deleteClient(username: string) {
     const response = await this.client.delete(`/clients/${username}`);
     return response.data;

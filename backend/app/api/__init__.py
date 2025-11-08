@@ -36,7 +36,7 @@ def get_web_prefix():
     return prefix
 
 def create_app(config_manager, client_manager, wg_manager, obfuscator_manager, 
-               token_manager, external_ip, external_port, traffic_stats_collector=None):
+               token_manager, external_ip, external_port):
     """
     Create and configure Flask application
     
@@ -48,7 +48,6 @@ def create_app(config_manager, client_manager, wg_manager, obfuscator_manager,
         token_manager: TokenManager instance
         external_ip: External IP address
         external_port: External port number
-        traffic_stats_collector: TrafficStatsCollector instance (optional)
         
     Returns:
         Configured Flask application
@@ -78,7 +77,6 @@ def create_app(config_manager, client_manager, wg_manager, obfuscator_manager,
     app.external_ip = external_ip
     app.external_port = external_port
     app.web_prefix = web_prefix
-    app.traffic_stats_collector = traffic_stats_collector
     
     # Register blueprints with prefix (API routes must be registered first)
     from . import auth, config_routes, clients, stats, health, system

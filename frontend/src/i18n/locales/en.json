@@ -126,14 +126,10 @@
     "verbosityLevelDescription": "Log verbosity level for the obfuscator on the client side. More detailed logs can help troubleshoot issues if they occur.",
     "clientSettingsUpdated": "Client settings updated successfully",
     "clientSettings": "Client Settings",
-    "allTimeReceived": "All-Time Received",
-    "allTimeSent": "All-Time Sent",
+    "currentReceived": "Data Received",
+    "currentSent": "Data Sent",
     "received": "Received",
-    "sent": "Sent",
-    "clearCounters": "Clear Counters",
-    "confirmClearAllTimeStats": "Clear all-time traffic counter? History will be preserved.",
-    "clearAllTimeStats": "Clear all-time traffic counter",
-    "errorClearingStats": "Error clearing statistics"
+    "sent": "Sent"
   },
   "config": {
     "title": "Configuration",

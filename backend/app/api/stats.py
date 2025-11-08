@@ -17,10 +17,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """Statistics and logs API endpoints"""
 
-from flask import Blueprint, request, jsonify, current_app, Response, stream_with_context
+from flask import Blueprint, request, jsonify, current_app, Response
 import logging
-import time
-import json
 
 from ..config.constants import APP_VERSION
 
@@ -254,186 +252,6 @@ def get_obfuscator_logs():
         return jsonify({"error": str(e)}), 500
 
 
-@bp.route('/clients/<username>/traffic-stats', methods=['GET'])
-@require_auth
-def get_client_traffic_stats(username):
-    """Get historical traffic statistics for a client"""
-    try:
-        collector = current_app.traffic_stats_collector
-        if not collector:
-            return jsonify({"error": "Traffic statistics collector not available"}), 503
-        
-        config_manager = current_app.config_manager
-        if not config_manager.has_client(username):
-            return jsonify({"error": "Client not found"}), 404
-        
-        # Get time range from query parameters
-        start_time = request.args.get('start_time', type=int)
-        end_time = request.args.get('end_time', type=int)
-        aggregation_interval = request.args.get('aggregation_interval', type=int)  # in seconds
-        
-        # Default to last hour if not specified
-        if end_time is None:
-            end_time = int(time.time())
-        if start_time is None:
-            start_time = end_time - 3600  # Last hour
-        
-        # Validate time range
-        if start_time >= end_time:
-            return jsonify({"error": "start_time must be less than end_time"}), 400
-        
-        # Maximum range: 7 days
-        if end_time - start_time > 7 * 24 * 3600:
-            return jsonify({"error": "Time range cannot exceed 7 days"}), 400
-        
-        # Validate aggregation interval
-        if aggregation_interval is not None:
-            if aggregation_interval <= 0:
-                return jsonify({"error": "aggregation_interval must be positive"}), 400
-            # Cap aggregation at 1 hour
-            if aggregation_interval > 3600:
-                return jsonify({"error": "aggregation_interval cannot exceed 3600 seconds (1 hour)"}), 400
-        
-        stats = collector.get_traffic_stats(username, start_time, end_time, aggregation_interval)
-        aggregated = collector.get_aggregated_stats(username, start_time, end_time)
-        
-        return jsonify({
-            "username": username,
-            "start_time": start_time,
-            "end_time": end_time,
-            "data_points": stats,
-            "aggregated": aggregated
-        })
-    except Exception as e:
-        logger.error(f"Error getting client traffic stats: {e}")
-        return jsonify({"error": str(e)}), 500
-
-
-@bp.route('/clients/<username>/traffic-stats/stream', methods=['GET'])
-def stream_client_traffic_stats(username):
-    """Stream real-time traffic statistics for a client using Server-Sent Events (SSE)"""
-    try:
-        # Check auth - token can come from Authorization header or query param (for EventSource)
-        from ..config.constants import AUTH_ENABLED
-        if AUTH_ENABLED:
-            token = None
-            auth_header = request.headers.get('Authorization')
-            if auth_header and auth_header.startswith('Bearer '):
-                token = auth_header.split(' ')[1]
-            else:
-                token = request.args.get('token')
-            
-            if not token:
-                return jsonify({"error": "Missing authorization token"}), 401
-            
-            token_manager = current_app.token_manager
-            if not token_manager or not token_manager.is_valid(token):
-                return jsonify({"error": "Invalid or expired token"}), 401
-        
-        collector = current_app.traffic_stats_collector
-        if not collector:
-            return jsonify({"error": "Traffic statistics collector not available"}), 503
-        
-        config_manager = current_app.config_manager
-        if not config_manager.has_client(username):
-            return jsonify({"error": "Client not found"}), 404
-        
-        def generate():
-            """Generate SSE stream"""
-            try:
-                # Send initial data
-                current_time = int(time.time())
-                start_time = current_time - 3600  # Last hour
-                
-                stats = collector.get_traffic_stats(username, start_time, current_time)
-                aggregated = collector.get_aggregated_stats(username, start_time, current_time)
-                
-                yield f"data: {json.dumps({'type': 'initial', 'data': stats, 'aggregated': aggregated})}\n\n"
-                
-                # Stream updates every 5 seconds
-                last_timestamp = current_time
-                while True:
-                    time.sleep(5)
-                    current_time = int(time.time())
-                    
-                    # Get new data points since last update
-                    new_stats = collector.get_traffic_stats(username, last_timestamp, current_time)
-                    if new_stats:
-                        # Calculate aggregated for the update period
-                        period_aggregated = collector.get_aggregated_stats(username, last_timestamp, current_time)
-                        yield f"data: {json.dumps({'type': 'update', 'data': new_stats, 'aggregated': period_aggregated})}\n\n"
-                        last_timestamp = current_time
-                    else:
-                        # Send heartbeat to keep connection alive
-                        yield f"data: {json.dumps({'type': 'heartbeat'})}\n\n"
-            except GeneratorExit:
-                logger.debug(f"SSE stream closed for client {username}")
-            except Exception as e:
-                logger.error(f"Error in SSE stream for client {username}: {e}")
-                yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
-        
-        return Response(
-            stream_with_context(generate()),
-            mimetype='text/event-stream',
-            headers={
-                'Cache-Control': 'no-cache',
-                'X-Accel-Buffering': 'no',  # Disable buffering in nginx
-                'Connection': 'keep-alive'
-            }
-        )
-    except Exception as e:
-        logger.error(f"Error starting SSE stream for client {username}: {e}")
-        return jsonify({"error": str(e)}), 500
-
-
-@bp.route('/clients/<username>/traffic-stats/all-time', methods=['GET'])
-@require_auth
-def get_client_all_time_traffic_stats(username):
-    """Get all-time aggregated traffic statistics for a client"""
-    try:
-        collector = current_app.traffic_stats_collector
-        if not collector:
-            return jsonify({"error": "Traffic statistics collector not available"}), 503
-        
-        config_manager = current_app.config_manager
-        if not config_manager.has_client(username):
-            return jsonify({"error": "Client not found"}), 404
-        
-        stats = collector.get_all_time_stats(username)
-        
-        return jsonify({
-            "username": username,
-            **stats
-        })
-    except Exception as e:
-        logger.error(f"Error getting all-time traffic stats: {e}")
-        return jsonify({"error": str(e)}), 500
-
-
-@bp.route('/clients/<username>/traffic-stats/clear-all-time', methods=['POST'])
-@require_auth
-def clear_client_all_time_stats(username):
-    """Clear all-time traffic statistics for a client (resets counters, but keeps history)"""
-    try:
-        collector = current_app.traffic_stats_collector
-        if not collector:
-            return jsonify({"error": "Traffic statistics collector not available"}), 503
-        
-        config_manager = current_app.config_manager
-        if not config_manager.has_client(username):
-            return jsonify({"error": "Client not found"}), 404
-        
-        collector.clear_client_all_time_stats(username)
-        
-        return jsonify({
-            "message": "All-time traffic statistics cleared successfully",
-            "username": username
-        })
-    except Exception as e:
-        logger.error(f"Error clearing all-time traffic stats: {e}")
-        return jsonify({"error": str(e)}), 500
-
-
 def _collect_wireguard_peer_map(config_manager, wg_manager):
     """Build a map of username -> peer stats from WireGuard"""
     peer_map = {}
@@ -517,8 +335,8 @@ def get_metrics_client(username):
 
         label = _sanitize_metric_label(username)
         connected = 1 if peer_stats.get('is_connected') else 0
-        rx_bytes = int(client_data.get('all_time_rx_bytes', 0) or 0)
-        tx_bytes = int(client_data.get('all_time_tx_bytes', 0) or 0)
+        rx_bytes = int(peer_stats.get('transfer_rx_bytes', 0) or 0)
+        tx_bytes = int(peer_stats.get('transfer_tx_bytes', 0) or 0)
 
         lines = [
             f"connected{{{label}}} {connected}",
@@ -550,8 +368,8 @@ def get_metrics_clients():
             label = _sanitize_metric_label(username)
             peer_stats = peer_map.get(username, {})
             connected = 1 if peer_stats.get('is_connected') else 0
-            rx_bytes = int(client_data.get('all_time_rx_bytes', 0) or 0)
-            tx_bytes = int(client_data.get('all_time_tx_bytes', 0) or 0)
+            rx_bytes = int(peer_stats.get('transfer_rx_bytes', 0) or 0)
+            tx_bytes = int(peer_stats.get('transfer_tx_bytes', 0) or 0)
 
             lines.extend([
                 f"connected{{{label}}} {connected}",

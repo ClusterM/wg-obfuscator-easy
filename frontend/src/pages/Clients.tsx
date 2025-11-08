@@ -17,8 +17,8 @@ interface Client {
   enabled?: boolean;
   is_connected?: boolean;
   latest_handshake?: number;
-  all_time_rx_bytes?: number;
-  all_time_tx_bytes?: number;
+  rx_bytes?: number;
+  tx_bytes?: number;
 }
 
 export default function Clients() {
@@ -73,7 +73,7 @@ export default function Clients() {
       if (selectedClient && clientsWithUsername[selectedClient.username]) {
         const updatedClient = {
           ...selectedClient, // Keep existing fields (private_key, wireguardConfig, etc.)
-          ...clientsWithUsername[selectedClient.username], // Update with fresh data (is_connected, latest_handshake, all_time_rx_bytes, all_time_tx_bytes, etc.)
+          ...clientsWithUsername[selectedClient.username], // Update with fresh data (is_connected, latest_handshake, traffic counters, etc.)
         };
         // Always update to trigger re-render with fresh data
         setSelectedClient(updatedClient);
@@ -121,13 +121,13 @@ export default function Clients() {
     return () => clearInterval(timeInterval);
   }, []);
 
-  // Update all-time stats and connection data in real-time when client modal is open
+  // Update traffic counters and connection data in real-time when client modal is open
   useEffect(() => {
     if (!selectedClient) return;
 
     const updateClientData = async () => {
       try {
-        // Get fresh client data (includes is_connected, latest_handshake, all_time stats)
+        // Get fresh client data (includes is_connected, latest_handshake, traffic counters)
         const clientData = await api.getClient(selectedClient.username);
         if (clientData) {
           setSelectedClient(prev => {
@@ -138,8 +138,8 @@ export default function Clients() {
               // Update connection and stats data
               is_connected: clientData.is_connected,
               latest_handshake: clientData.latest_handshake,
-              all_time_rx_bytes: clientData.all_time_rx_bytes,
-              all_time_tx_bytes: clientData.all_time_tx_bytes,
+              rx_bytes: clientData.rx_bytes,
+              tx_bytes: clientData.tx_bytes,
             };
           });
         }
@@ -664,10 +664,10 @@ export default function Clients() {
                   <td className="mono">{client.ip_full || client.ip}</td>
                   <td className="mono small">{client.public_key.substring(0, 20)}...</td>
                   <td>
-                    {client.all_time_rx_bytes !== undefined ? formatBytes(client.all_time_rx_bytes) : '-'}
+                    {client.rx_bytes !== undefined ? formatBytes(client.rx_bytes) : '-'}
                   </td>
                   <td>
-                    {client.all_time_tx_bytes !== undefined ? formatBytes(client.all_time_tx_bytes) : '-'}
+                    {client.tx_bytes !== undefined ? formatBytes(client.tx_bytes) : '-'}
                   </td>
                   <td>
                     <div className="actions-cell">
@@ -846,47 +846,24 @@ export default function Clients() {
                       </td>
                     </tr>
                   )}
-                  {selectedClient.all_time_rx_bytes !== undefined && selectedClient.all_time_tx_bytes !== undefined && (
+                  {selectedClient.rx_bytes !== undefined && selectedClient.tx_bytes !== undefined && (
                     <>
                       <tr>
-                        <td className="detail-label">{t('clients.allTimeReceived')}:</td>
+                        <td className="detail-label">{t('clients.currentReceived')}:</td>
                         <td className="detail-value">
-                          {formatBytes(selectedClient.all_time_rx_bytes)}
+                          {formatBytes(selectedClient.rx_bytes)}
                         </td>
                       </tr>
                       <tr>
-                        <td className="detail-label">{t('clients.allTimeSent')}:</td>
+                        <td className="detail-label">{t('clients.currentSent')}:</td>
                         <td className="detail-value">
-                          {formatBytes(selectedClient.all_time_tx_bytes)}
+                          {formatBytes(selectedClient.tx_bytes)}
                         </td>
                       </tr>
                     </>
                   )}
                 </tbody>
               </table>
-              {selectedClient.all_time_rx_bytes !== undefined && selectedClient.all_time_tx_bytes !== undefined && (
-                <div className="clear-stats-button-container">
-                  <button 
-                    className="btn-clear-all-time-stats"
-                    onClick={async () => {
-                      if (!confirm(t('clients.confirmClearAllTimeStats', 'Обнулить счетчик трафика за всё время? История графика сохранится.'))) {
-                        return;
-                      }
-                      try {
-                        await api.clearClientAllTimeStats(selectedClient.username);
-                        // Reload client data to get updated stats
-                        const updatedClient = await api.getClient(selectedClient.username);
-                        setSelectedClient(updatedClient);
-                      } catch (error: any) {
-                        alert(error.message || t('clients.errorClearingStats', 'Ошибка при обнулении статистики'));
-                      }
-                    }}
-                    title={t('clients.clearAllTimeStats', 'Обнулить счетчик трафика за всё время')}
-                  >
-                    {t('clients.clearCounters', 'Обнулить счётчики')}
-                  </button>
-                </div>
-              )}
             </div>
 
             {clientSettingsError && <div className="error-message">{clientSettingsError}</div>}
