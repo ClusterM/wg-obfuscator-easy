@@ -1246,6 +1246,7 @@ main() {
         while true; do
             read -p "$(msg RESET_PASSWORD_PROMPT)" -r
             if [[ "$REPLY" =~ ^[Yy]$ ]]; then
+                echo ""
                 if reset_admin_credentials "$ADMIN_PASSWORD"; then
                     # Function succeeded
                     NEW_PASSWORD=true
@@ -1259,11 +1260,11 @@ main() {
                     # Continue loop to ask again
                 fi
             elif [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Nn]$ ]]; then
+                echo ""
                 ADMIN_PASSWORD=""
                 break
             fi
         done
-        echo ""
     fi
     if [ "$KEEP_OLD_HOST_CONFIG" = false ]; then
         WEB_PREFIX="/$(generate_prefix)/"
@@ -1482,25 +1483,15 @@ main() {
                     print_info "$(msg DYNU_STEPS)"
                     echo ""
                     print_info "$(msg DYNU_STEP0)"
-                    echo ""
                     print_info "$(msg DYNU_STEP1)"
-                    echo ""
                     print_info "$(msg DYNU_STEP2)"
-                    echo ""
                     print_info "$(msg DYNU_STEP3)"
-                    echo ""
                     print_info "$(msg DYNU_STEP4)"
-                    echo ""
                     print_info "$(msg DYNU_STEP5)"
-                    echo ""
                     print_info "$(msg DYNU_STEP6)"
-                    echo ""
                     print_info "$(msg DYNU_STEP7)"
-                    echo ""
                     print_info "$(msg DYNU_STEP8 "$EXTERNAL_IP")"
-                    echo ""
                     print_info "$(msg DYNU_STEP9)"
-                    echo ""
                     print_info "$(msg DYNU_STEP10)"
                     echo ""
                     break
@@ -1580,20 +1571,24 @@ main() {
             print_info "$(msg SSL_EMAIL_INFO)"
             print_info "$(msg SSL_EMAIL_INFO2)"
             print_info "$(msg SSL_EMAIL_OPTIONAL)"
+            echo ""
             while true; do
                 read -p "$(msg EMAIL_PROMPT)" -r
                 if [ -z "$REPLY" ]; then
                     # Empty email - that's fine
+                    echo ""
                     ACME_EMAIL=""
                     print_info "$(msg EMAIL_SKIPPED)"
                     break
                 elif echo "$REPLY" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; then
                     # Valid email
+                    echo ""
                     ACME_EMAIL="$REPLY"
                     print_info "$(msg EMAIL_SET "$ACME_EMAIL")"
                     print_info "$(msg EMAIL_NOTIFICATIONS)"
                     break
                 else
+                    echo ""
                     print_error "$(msg EMAIL_INVALID)"
                     print_error "$(msg EMAIL_INVALID_FORMAT)"
                     print_error "$(msg EMAIL_SKIP_NOTE)"
