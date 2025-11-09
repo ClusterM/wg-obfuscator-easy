@@ -22,6 +22,9 @@ from flask import Flask, send_from_directory
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask import Response
+import re
+import json
 
 
 def get_web_prefix():
@@ -102,6 +105,17 @@ def create_app(config_manager, client_manager, wg_manager, obfuscator_manager,
         # Don't serve API routes as static files
         if path.startswith('api/'):
             return {'error': 'Not found'}, 404
+
+        site_webmanifest_path = os.path.join(static_folder, 'site.webmanifest')
+        if path == 'site.webmanifest' and os.path.exists(site_webmanifest_path):
+            with open(site_webmanifest_path, 'r', encoding='utf-8') as f:
+                html_content = f.read()
+                json_content = json.loads(html_content)
+                if 'icons' in json_content:
+                    for icon in json_content['icons']:
+                        icon['src'] = web_prefix + icon['src']
+                html_content = json.dumps(json_content, indent=4)
+                return Response(html_content, mimetype='application/json')
         
         # If path exists as a file, serve it
         if path and os.path.exists(os.path.join(static_folder, path)):
@@ -117,7 +131,6 @@ def create_app(config_manager, client_manager, wg_manager, obfuscator_manager,
             # Replace absolute asset paths with prefixed paths if prefix is set
             if web_prefix:
                 # Replace absolute paths that don't already start with the prefix
-                import re
                 # Match absolute paths (starting with /) that don't already have the prefix
                 def add_prefix(match):
                     attr = match.group(1)  # href or src
@@ -143,7 +156,6 @@ def create_app(config_manager, client_manager, wg_manager, obfuscator_manager,
             else:
                 html_content = prefix_script + '\n' + html_content
             
-            from flask import Response
             return Response(html_content, mimetype='text/html')
         
         return {'error': 'Not found'}, 404
