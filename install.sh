@@ -1455,6 +1455,7 @@ main() {
     fi    
 
     if [ "$KEEP_OLD_HOST_CONFIG" = false ]; then
+        echo ""
         while true; do
             read -p "$(msg ENABLE_HTTPS_PROMPT)" -r
             if [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Yy]$ ]]; then
@@ -1531,6 +1532,7 @@ main() {
                 break
             done
         fi
+        echo ""
     fi
 
     DNS_RESOLVED=false
