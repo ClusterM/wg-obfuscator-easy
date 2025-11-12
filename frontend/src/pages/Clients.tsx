@@ -78,7 +78,6 @@ export default function Clients() {
         };
       });
       setClients(clientsWithUsername);
-      setError('');
       
       // Update selected client if modal is open (preserve existing fields like private_key, configs, etc.)
       if (selectedClient && clientsWithUsername[selectedClient.username]) {
@@ -630,7 +629,19 @@ export default function Clients() {
         <h1>{t('clients.title')}</h1>
       </div>
 
-      {error && <div className="error-message">{error}</div>}
+      {error && (
+        <div className="error-message alert-message">
+          <span className="message-text">{error}</span>
+          <button
+            type="button"
+            className="message-close"
+            onClick={() => setError('')}
+            aria-label={t('common.close')}
+          >
+            &times;
+          </button>
+        </div>
+      )}
       {success && <div className="success-message">{success}</div>}
 
       {clientList.length === 0 ? (
