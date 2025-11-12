@@ -90,28 +90,13 @@ def init_database() -> None:
                 allowed_ips TEXT NOT NULL,  -- JSON array
                 obfuscator_port INTEGER,
                 masking_type_override TEXT,
+                verbosity_level TEXT,
                 enabled INTEGER NOT NULL DEFAULT 1,
                 latest_handshake INTEGER DEFAULT 0,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )
         """)
-        
-        # Add latest_handshake column if it doesn't exist (migration)
-        try:
-            cursor.execute("ALTER TABLE clients ADD COLUMN latest_handshake INTEGER DEFAULT 0")
-            logger.info("Added latest_handshake column to clients table")
-        except sqlite3.OperationalError:
-            # Column already exists, ignore
-            pass
-        
-        # Add verbosity_level column if it doesn't exist (migration)
-        try:
-            cursor.execute("ALTER TABLE clients ADD COLUMN verbosity_level TEXT")
-            logger.info("Added verbosity_level column to clients table")
-        except sqlite3.OperationalError:
-            # Column already exists, ignore
-            pass
         
         # Tokens table
         cursor.execute("""
@@ -173,39 +158,20 @@ def set_config_value(key: str, value: Any) -> None:
 
 
 def get_metrics_token() -> Optional[str]:
-    """Get metrics token from database (fallback to legacy grafana token key)"""
+    """Get metrics token from database"""
     token = get_config_value("metrics_token")
-    legacy_token = None
-
-    if not token:
-        legacy_token = get_config_value("grafana_token")
-        token = legacy_token
 
     if token:
-        # Ensure token is clean (strip whitespace and remove any newlines/spaces)
         token = str(token).strip().replace('\n', '').replace('\r', '').replace(' ', '')
         if token:
-            # If token came from legacy key, migrate to new key
-            if legacy_token:
-                set_config_value("metrics_token", token)
-                with get_db() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute("DELETE FROM config WHERE key = ?", ("grafana_token",))
-                    conn.commit()
             return token
     return None
 
 
 def set_metrics_token(token: str) -> None:
     """Set metrics token in database"""
-    # Strip whitespace and ensure token is clean
     token = token.strip().replace('\n', '').replace('\r', '').replace(' ', '')
     set_config_value("metrics_token", token)
-    # Remove legacy key if present
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM config WHERE key = ?", ("grafana_token",))
-        conn.commit()
 
 
 def delete_metrics_token() -> None:
