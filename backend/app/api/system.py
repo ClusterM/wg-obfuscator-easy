@@ -225,8 +225,8 @@ def restart_system():
     """Restart the application gracefully"""
     try:
         logger.info("Initiating graceful restart via API call")
-        # Send SIGHUP to current process for graceful restart
-        os.kill(os.getpid(), signal.SIGHUP)
+        # Send SIGTERM to current process for graceful restart
+        os.kill(os.getpid(), signal.SIGTERM)
         return jsonify({
             "message": "System restart initiated. The application will restart automatically."
         })

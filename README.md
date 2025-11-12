@@ -70,7 +70,7 @@ docker run -d \
 
 After starting the container, access the web interface at:
 - HTTP: `http://your-server-ip:5000/your-prefix/`
-- HTTPS (optional): The container can serve TLS directly if you mount certificates via `SSL_CERT_FILE` and `SSL_KEY_FILE`, but this setup is discouraged—prefer terminating TLS in an external reverse proxy (Caddy, Nginx, Traefik, etc.) or use the automated installation script, which configures Caddy automatically.
+- HTTPS: Terminate TLS in an external reverse proxy (Caddy, Nginx, Traefik, etc.) or use the automated installation script, which installs and configures Caddy automatically outside the container.
 
 ### Environment Variables
 
@@ -80,8 +80,6 @@ After starting the container, access the web interface at:
 - `ADMIN_PASSWORD` - Admin password (default: `admin`)
 - `AUTH_ENABLED` - Enable/disable authentication (default: `true`)
 - `LOG_LEVEL` - Logging level: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` (default: `INFO`)
-- `SSL_CERT_FILE` - Path to SSL certificate file (optional, for HTTPS)
-- `SSL_KEY_FILE` - Path to SSL private key file (optional, for HTTPS)
 
 ## Docker Images
 
