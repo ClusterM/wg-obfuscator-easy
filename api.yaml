@@ -95,7 +95,7 @@ paths:
       tags:
         - System
       summary: Set system timezone
-      description: Change system timezone setting
+      description: Change system timezone setting (applies immediately without restarting the container)
       operationId: setSystemTimezone
       security:
         - bearerAuth: []
@@ -131,31 +131,6 @@ paths:
                     example: +03:00
         '400':
           $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /api/system/restart:
-    post:
-      tags:
-        - System
-      summary: Restart system
-      description: Gracefully restart the application to apply configuration changes
-      operationId: restartSystem
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: Restart initiated successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: System restart initiated. The application will restart automatically.
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':

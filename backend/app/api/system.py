@@ -19,8 +19,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import os
 import subprocess
-import signal
 import logging
+import time
 from datetime import datetime
 from flask import Blueprint, request, jsonify, current_app
 import pytz
@@ -149,6 +149,14 @@ def set_system_timezone(timezone_name):
         from ..database import set_config_value
         set_config_value("system_timezone", timezone_name)
 
+        # Update process timezone without restart
+        os.environ['TZ'] = timezone_name
+        try:
+            time.tzset()
+        except AttributeError:
+            # tzset not available on all platforms
+            pass
+
         return True, None
 
     except subprocess.CalledProcessError as e:
@@ -216,20 +224,4 @@ def set_system_timezone_endpoint():
 
     except Exception as e:
         logger.error(f"Error setting system timezone: {e}")
-        return jsonify({"error": str(e)}), 500
-
-
-@bp.route('/restart', methods=['POST'])
-@require_auth
-def restart_system():
-    """Restart the application gracefully"""
-    try:
-        logger.info("Initiating graceful restart via API call")
-        # Send SIGTERM to current process for graceful restart
-        os.kill(os.getpid(), signal.SIGTERM)
-        return jsonify({
-            "message": "System restart initiated. The application will restart automatically."
-        })
-    except Exception as e:
-        logger.error(f"Error initiating system restart: {e}")
         return jsonify({"error": str(e)}), 500

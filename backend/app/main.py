@@ -99,9 +99,7 @@ def main():
     # Check and set system timezone if needed
     try:
         if check_and_set_system_timezone():
-            logger.info("System timezone was corrected. Application will restart...")
-            # Exit gracefully - Docker will restart the container
-            return 0
+            logger.info("System timezone was corrected to match saved configuration.")
     except Exception as e:
         logger.error(f"Failed to check system timezone: {e}")
         # Continue with application startup despite timezone check failure

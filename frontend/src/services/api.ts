@@ -131,11 +131,6 @@ class ApiService {
     return response.data;
   }
 
-  async restartSystem() {
-    const response = await this.client.post('/system/restart');
-    return response.data;
-  }
-
   // Metrics endpoints
   async getMetricsToken() {
     const response = await this.client.get('/metrics/token');

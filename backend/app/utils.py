@@ -166,8 +166,10 @@ def initialize_config(config_manager) -> None:
 
 def check_and_set_system_timezone() -> bool:
     """
-    Check if system timezone matches saved timezone and correct if needed.
-    Returns True if restart is needed.
+    Ensure system timezone matches saved timezone.
+    
+    Returns:
+        True if timezone was changed, False otherwise.
     """
     try:
         saved_timezone = get_config_value("system_timezone")
@@ -187,10 +189,10 @@ def check_and_set_system_timezone() -> bool:
         success, error_msg = set_system_timezone(saved_timezone)
         if success:
             logger.info(f"Successfully set system timezone to: {saved_timezone}")
-            return True  # Need restart
-        else:
-            logger.error(f"Failed to set system timezone: {error_msg}")
-            return False
+            return True
+        
+        logger.error(f"Failed to set system timezone: {error_msg}")
+        return False
 
     except Exception as e:
         logger.error(f"Error checking system timezone: {e}")

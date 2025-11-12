@@ -37,8 +37,6 @@ export default function Config() {
   const [availableTimezones, setAvailableTimezones] = useState<string[]>([]);
   const [selectedTimezone, setSelectedTimezone] = useState('');
   const [changingTimezone, setChangingTimezone] = useState(false);
-  const [showRestartModal, setShowRestartModal] = useState(false);
-  const [restartStatus, setRestartStatus] = useState<'waiting' | 'checking' | 'success' | 'error'>('waiting');
 
   // Metrics token state
   const [metricsToken, setMetricsToken] = useState<string | null>(null);
@@ -137,52 +135,6 @@ export default function Config() {
     } catch (err: any) {
       console.error('Failed to load metrics token:', err);
     }
-  };
-
-  const waitForSystemRestart = async () => {
-    setRestartStatus('waiting');
-
-    // Wait 3 seconds before starting checks (give system time to start shutting down)
-    await new Promise(resolve => setTimeout(resolve, 3000));
-
-    const maxAttempts = 60; // 60 attempts * 2 seconds = 2 minutes max
-    let attempts = 0;
-
-    const checkSystem = async (): Promise<boolean> => {
-      try {
-        setRestartStatus('checking');
-        // Try to load timezone data as a health check
-        await api.getSystemTimezone();
-        return true;
-      } catch (error) {
-        return false;
-      }
-    };
-
-    const checkInterval = setInterval(async () => {
-      attempts++;
-
-      if (await checkSystem()) {
-        // System is back online!
-        clearInterval(checkInterval);
-        setRestartStatus('success');
-
-        // Reload timezone data
-        await loadTimezone();
-
-        // Close modal after 3 seconds and reset changing state
-        setTimeout(() => {
-          setShowRestartModal(false);
-          setRestartStatus('waiting');
-          setChangingTimezone(false);
-        }, 3000);
-      } else if (attempts >= maxAttempts) {
-        // Timeout - system didn't come back
-        clearInterval(checkInterval);
-        setRestartStatus('error');
-        setChangingTimezone(false);
-      }
-    }, 2000); // Check every 2 seconds
   };
 
   useEffect(() => {
@@ -351,29 +303,22 @@ export default function Config() {
       return;
     }
 
-    // Show alert about system restart
-    const confirmRestart = window.confirm(t('config.timezoneRestartAlert'));
-    if (!confirmRestart) {
-      return;
-    }
-
     try {
       setChangingTimezone(true);
       setError('');
       setSuccess('');
 
-      // First, set the timezone
-      await api.setSystemTimezone(selectedTimezone);
+      const result = await api.setSystemTimezone(selectedTimezone);
+      const updatedTimezone = result?.timezone || selectedTimezone;
+      const updatedOffset = result?.offset || timezoneOffset;
 
-      // Then restart the system to apply changes
-      await api.restartSystem();
-
-      // Show restart modal and start waiting for system
-      setShowRestartModal(true);
-      await waitForSystemRestart();
-
+      setCurrentTimezone(updatedTimezone);
+      setSelectedTimezone(updatedTimezone);
+      setTimezoneOffset(updatedOffset);
+      setSuccess(t('config.timezoneUpdated'));
     } catch (err: any) {
       setError(err.message || t('errors.serverError'));
+    } finally {
       setChangingTimezone(false);
     }
   };
@@ -711,59 +656,6 @@ export default function Config() {
         </div>
       </div>
 
-      {/* System Restart Modal */}
-      {showRestartModal && (
-        <div className="restart-modal-overlay" onClick={() => setShowRestartModal(false)}>
-          <div className="restart-modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="restart-modal-header">
-              <h3>{t('config.timezoneRestartModalTitle')}</h3>
-            </div>
-            <div className="restart-modal-body">
-              {restartStatus === 'waiting' && (
-                <div className="restart-status">
-                  <div className="spinner"></div>
-                  <p>{t('config.timezoneRestartModalMessage')}</p>
-                </div>
-              )}
-              {restartStatus === 'checking' && (
-                <div className="restart-status">
-                  <div className="spinner"></div>
-                  <p>{t('config.timezoneRestartModalChecking')}</p>
-                </div>
-              )}
-              {restartStatus === 'success' && (
-                <div className="restart-status success">
-                  <div className="success-icon">✓</div>
-                  <p>{t('config.timezoneRestartModalSuccess')}</p>
-                </div>
-              )}
-              {restartStatus === 'error' && (
-                <div className="restart-status error">
-                  <div className="error-icon">✗</div>
-                  <p>{t('config.timezoneRestartModalError')}</p>
-                  <button
-                    onClick={() => window.location.reload()}
-                    className="btn-primary"
-                  >
-                    {t('common.refresh')}
-                  </button>
-                </div>
-              )}
-            </div>
-            {restartStatus !== 'error' && (
-              <div className="restart-modal-footer">
-                <button
-                  onClick={() => setShowRestartModal(false)}
-                  className="btn-secondary"
-                  disabled={restartStatus === 'waiting' || restartStatus === 'checking'}
-                >
-                  {t('common.close')}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
