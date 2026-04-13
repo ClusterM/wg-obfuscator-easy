@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { login } from '../services/auth';
 import LanguageSelector from '../components/LanguageSelector';
+import ThemeToggle from '../components/ThemeToggle';
 import './Login.css';
 
 export default function Login() {
@@ -31,7 +32,8 @@ export default function Login() {
 
   return (
     <div className="login-container">
-      <div className="login-language-selector">
+      <div className="login-language-selector" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <ThemeToggle />
         <LanguageSelector />
       </div>
       <div className="login-card">

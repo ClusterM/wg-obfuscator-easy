@@ -1,20 +1,21 @@
 .config-page h1 {
   margin-bottom: 2rem;
-  color: #2c3e50;
+  color: var(--text-main);
 }
 
 .config-section {
-  background: white;
+  background: var(--bg-card);
   padding: 2rem;
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow);
   margin-bottom: 2rem;
+  transition: background-color 0.3s ease;
 }
 
 .config-section h2 {
   font-size: 1.3rem;
   margin-bottom: 1.5rem;
-  color: #2c3e50;
+  color: var(--text-main);
   border-bottom: 2px solid #3498db;
   padding-bottom: 0.5rem;
 }
@@ -26,23 +27,27 @@
 .form-group label {
   display: block;
   margin-bottom: 0.5rem;
-  color: #2c3e50;
+  color: var(--text-main);
   font-weight: 500;
 }
 
 .form-group input[type="text"],
 .form-group input[type="number"],
+.form-group input[type="password"],
 .form-group select {
   width: 100%;
   padding: 0.75rem;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-input);
+  background-color: var(--input-bg);
+  color: var(--text-normal);
   border-radius: 4px;
   font-size: 1rem;
-  transition: border-color 0.2s, background-color 0.3s ease, box-shadow 0.3s ease;
+  transition: border-color 0.2s, background-color 0.3s ease, box-shadow 0.3s ease, color 0.3s ease;
   box-sizing: border-box;
 }
 
 .form-group input[type="text"]:focus,
+.form-group input[type="password"]:focus,
 .form-group select:focus {
   outline: none;
   border-color: #3498db;
@@ -64,14 +69,14 @@
 .form-group small {
   display: block;
   margin-top: 0.25rem;
-  color: #7f8c8d;
+  color: var(--text-muted);
   font-size: 0.85rem;
 }
 
 .field-description {
   display: block;
   margin-top: 0.5rem;
-  color: #7f8c8d;
+  color: var(--text-muted);
   font-size: 0.9rem;
   line-height: 1.4;
   font-style: italic;
@@ -104,21 +109,23 @@
 .info-group label {
   display: block;
   margin-bottom: 0.5rem;
-  color: #2c3e50;
+  color: var(--text-main);
   font-weight: 500;
 }
 
 .info-group .value {
-  background-color: #f8f9fa;
+  background-color: var(--bg-alt);
   padding: 0.75rem;
   border-radius: 4px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-input);
+  color: var(--text-normal);
   font-family: 'Courier New', monospace;
   word-break: break-all;
   word-wrap: break-word;
   font-size: 0.9rem;
   max-width: 100%;
   overflow-wrap: break-word;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .info-group .value.code {
@@ -194,21 +201,21 @@
 }
 
 .error-message {
-  background-color: #fee;
-  color: #c33;
+  background-color: rgba(231, 76, 60, 0.1);
+  color: #e74c3c;
   padding: 1rem;
   border-radius: 4px;
   margin-bottom: 1rem;
-  border: 1px solid #fcc;
+  border: 1px solid rgba(231, 76, 60, 0.3);
 }
 
 .success-message {
-  background-color: #efe;
-  color: #3c3;
+  background-color: rgba(46, 204, 113, 0.1);
+  color: #27ae60;
   padding: 1rem;
   border-radius: 4px;
   margin-bottom: 1rem;
-  border: 1px solid #cfc;
+  border: 1px solid rgba(46, 204, 113, 0.3);
 }
 
 .loading, .error {
@@ -225,7 +232,7 @@
 .metrics-instructions {
   margin-top: 1.5rem;
   padding: 1.5rem;
-  background-color: #f8f9fa;
+  background-color: var(--bg-alt);
   border-radius: 6px;
   border-left: 4px solid #3498db;
 }
@@ -233,15 +240,15 @@
 .metrics-instructions h3 {
   margin-top: 0;
   margin-bottom: 1rem;
-  color: #2c3e50;
+  color: var(--text-main);
   font-size: 1.1rem;
 }
 
 .instructions-content {
-  background: white;
+  background: var(--bg-card);
   padding: 1rem;
   border-radius: 4px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--border-main);
 }
 
 .copy-highlight-target {
@@ -249,13 +256,13 @@
 }
 
 .copy-flash {
-  background-color: #d4edda !important;
+  background-color: rgba(46, 204, 113, 0.2) !important;
   box-shadow: 0 0 0 2px rgba(39, 174, 96, 0.4);
 }
 
 .instructions-content pre {
   margin: 0;
-  color: #555;
+  color: var(--text-muted);
   white-space: pre-wrap;
   word-wrap: break-word;
 }
@@ -270,19 +277,19 @@
 
 .url-label {
   font-weight: 500;
-  color: #2c3e50;
+  color: var(--text-main);
   min-width: fit-content;
 }
 
 .url-code {
   flex: 1;
-  background-color: #f5f5f5;
+  background-color: var(--input-bg);
   padding: 0.4rem 0.6rem;
   border-radius: 4px;
   font-family: 'Courier New', monospace;
   font-size: 0.85rem;
-  color: #333;
-  border: 1px solid #ddd;
+  color: var(--text-normal);
+  border: 1px solid var(--border-input);
   word-break: break-all;
   min-width: 0;
 }
@@ -306,10 +313,9 @@
 
 .instructions-content ol,
 .instructions-content ul {
-  color: #555;
+  color: var(--text-normal);
 }
 
 .instructions-content li {
   margin-bottom: 0.5rem;
 }
-

@@ -7,15 +7,17 @@
 }
 
 .page-header h1 {
-  color: #2c3e50;
+  color: var(--text-main);
   font-size: 2rem;
+  transition: color 0.3s ease;
 }
 
 .clients-table-container {
-  background: white;
+  background: var(--bg-card);
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow);
   overflow-x: auto;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .clients-table {
@@ -27,13 +29,16 @@
 .clients-table td {
   padding: 1rem;
   text-align: left;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--border-main);
+  color: var(--text-normal);
+  transition: border-color 0.3s ease, color 0.3s ease;
 }
 
 .clients-table th {
-  background-color: #f8f9fa;
+  background-color: var(--bg-alt);
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--text-main);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .clients-table th:last-child,
@@ -50,7 +55,7 @@
 }
 
 .clients-table tr:hover {
-  background-color: #f8f9fa;
+  background-color: var(--bg-hover);
 }
 
 .clients-table tr:last-child td {
@@ -115,28 +120,35 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: var(--modal-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  transition: background-color 0.3s ease;
 }
 
 .modal-content {
-  background: white;
+  background: var(--bg-card);
+  color: var(--text-normal);
   padding: 2rem;
   border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
   max-width: 500px;
   width: 90%;
   max-height: 90vh;
   overflow-y: auto;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.modal-content h2 {
+  color: var(--text-main);
 }
 
 .no-clients {
   text-align: center;
   padding: 3rem;
-  color: #7f8c8d;
+  color: var(--text-muted);
   font-size: 1.1rem;
 }
 
@@ -151,12 +163,12 @@
 }
 
 .error-message {
-  background-color: #fee;
-  color: #c33;
+  background-color: rgba(231, 76, 60, 0.1);
+  color: #e74c3c;
   padding: 1rem;
   border-radius: 4px;
   margin-bottom: 1rem;
-  border: 1px solid #fcc;
+  border: 1px solid rgba(231, 76, 60, 0.3);
 }
 
 .alert-message {
@@ -188,17 +200,18 @@
 }
 
 .success-message {
-  background-color: #efe;
-  color: #3c3;
+  background-color: rgba(46, 204, 113, 0.1);
+  color: #27ae60;
   padding: 1rem;
   border-radius: 4px;
   margin-bottom: 1rem;
-  border: 1px solid #cfc;
+  border: 1px solid rgba(46, 204, 113, 0.3);
 }
 
 .loading {
   text-align: center;
   padding: 2rem;
+  color: var(--text-muted);
 }
 
 .client-disabled {
@@ -239,11 +252,12 @@
   align-items: center;
   margin-bottom: 2rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--border-main);
 }
 
 .modal-header h2 {
   margin: 0;
+  color: var(--text-main);
 }
 
 .client-details {
@@ -256,7 +270,7 @@
 }
 
 .details-table tr {
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-main);
 }
 
 .details-table tr:last-child {
@@ -276,14 +290,14 @@
 
 .detail-label {
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--text-main);
   width: 220px;
   padding-right: 1rem;
   white-space: nowrap;
 }
 
 .detail-value {
-  color: #34495e;
+  color: var(--text-normal);
   word-break: break-all;
 }
 
@@ -293,7 +307,7 @@
 
 .config-section h3 {
   margin-bottom: 0.5rem;
-  color: #2c3e50;
+  color: var(--text-main);
   font-size: 1.1rem;
 }
 
@@ -325,14 +339,15 @@
 .config-textarea {
   width: 100%;
   padding: 0.75rem;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-input);
   border-radius: 4px;
   font-family: monospace;
   font-size: 0.85rem;
   resize: vertical;
-  background-color: #f8f9fa;
+  background-color: var(--input-bg);
+  color: var(--text-normal);
   box-sizing: border-box;
-  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease, color 0.3s ease;
 }
 
 .copy-highlight-target {
@@ -340,20 +355,20 @@
 }
 
 .copy-flash {
-  background-color: #d4edda !important;
+  background-color: rgba(46, 204, 113, 0.2) !important;
   box-shadow: 0 0 0 2px rgba(39, 174, 96, 0.4);
 }
 
 .config-textarea:disabled {
-  background-color: #f0f0f0;
-  color: #999;
+  background-color: var(--bg-hover);
+  color: var(--text-muted);
   cursor: not-allowed;
 }
 
 .config-textarea:focus {
   outline: none;
   border-color: #3498db;
-  background-color: white;
+  background-color: var(--bg-card);
 }
 
 .btn-copy,
@@ -381,8 +396,8 @@
 }
 
 .btn-copy:disabled {
-  background-color: #ccc;
-  color: #666;
+  background-color: var(--bg-hover);
+  color: var(--text-muted);
   cursor: not-allowed;
   opacity: 0.6;
 }
@@ -397,8 +412,8 @@
 }
 
 .btn-qr:disabled {
-  background-color: #ccc;
-  color: #666;
+  background-color: var(--bg-hover);
+  color: var(--text-muted);
   cursor: not-allowed;
   opacity: 0.6;
 }
@@ -410,19 +425,21 @@
   overflow: hidden;
   padding: 1rem 0.5rem;
   width: auto;
+  background-color: var(--bg-card);
 }
 
 .qr-modal h2 {
   margin-top: 0;
   margin-bottom: 1rem;
+  color: var(--text-main);
 }
 
 .qr-container {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 0;
-  background-color: white;
+  padding: 1rem;
+  background-color: white; /* Фон должен оставаться белым для читаемости QR сканерами */
   border-radius: 8px;
   margin: 0;
   width: auto;
@@ -454,7 +471,7 @@
 
 .handshake-time {
   font-size: 0.85rem;
-  color: #7f8c8d;
+  color: var(--text-muted);
 }
 
 .detail-value.connected {
@@ -514,10 +531,11 @@
 
 .client-settings-section {
   margin-bottom: 2rem;
-  background-color: #f8f9fa;
+  background-color: var(--bg-alt);
   border-radius: 8px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--border-main);
   overflow: hidden;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .settings-header-toggle {
@@ -527,24 +545,24 @@
   padding: 1rem 1.5rem;
   cursor: pointer;
   user-select: none;
-  background-color: #e9ecef;
+  background-color: var(--bg-hover);
   transition: background-color 0.2s;
 }
 
 .settings-header-toggle:hover {
-  background-color: #dee2e6;
+  background-color: var(--border-main);
 }
 
 .settings-header-toggle h3 {
   margin: 0;
   font-size: 1.1rem;
-  color: #2c3e50;
+  color: var(--text-main);
   font-weight: 600;
 }
 
 .toggle-icon {
   font-size: 0.9rem;
-  color: #6c757d;
+  color: var(--text-muted);
   transition: transform 0.2s;
 }
 
@@ -553,12 +571,12 @@
 }
 
 .settings-warning {
-  background-color: #fff3cd;
-  color: #856404;
+  background-color: rgba(255, 193, 7, 0.1);
+  color: #d39e00;
   padding: 0.75rem 1rem;
   border-radius: 4px;
   margin-bottom: 1.5rem;
-  border: 1px solid #ffc107;
+  border: 1px solid rgba(255, 193, 7, 0.3);
   font-size: 0.9rem;
   line-height: 1.4;
 }
@@ -570,7 +588,7 @@
 .client-settings-section .form-group label {
   display: block;
   margin-bottom: 0.5rem;
-  color: #2c3e50;
+  color: var(--text-main);
   font-weight: 500;
 }
 
@@ -579,10 +597,12 @@
 .client-settings-section .form-group select {
   width: 100%;
   padding: 0.75rem;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-input);
+  background-color: var(--input-bg);
+  color: var(--text-normal);
   border-radius: 4px;
   font-size: 1rem;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, background-color 0.3s ease, color 0.3s ease;
   box-sizing: border-box;
 }
 
@@ -599,7 +619,7 @@
 }
 
 .client-settings-section .form-group select:disabled {
-  background-color: #f5f5f5;
+  background-color: var(--bg-hover);
   cursor: not-allowed;
   opacity: 0.7;
 }
@@ -656,7 +676,7 @@
 .client-settings-section .field-description {
   display: block;
   margin-top: 0.5rem;
-  color: #7f8c8d;
+  color: var(--text-muted);
   font-size: 0.85rem;
   line-height: 1.4;
   font-style: italic;
@@ -697,7 +717,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: #ccc;
+  background-color: var(--border-input);
   transition: 0.3s;
   border-radius: 24px;
 }
