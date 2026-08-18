@@ -14,12 +14,13 @@
 }
 
 .login-card {
-  background: white;
+  background: var(--bg-card);
   padding: 2rem;
   border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow);
   width: 100%;
   max-width: 400px;
+  transition: background-color 0.3s ease;
 }
 
 .login-brand {
@@ -38,13 +39,13 @@
 
 .login-card h1 {
   text-align: center;
-  color: #2c3e50;
+  color: var(--text-main);
   margin: 0;
 }
 
 .login-card h2 {
   text-align: center;
-  color: #7f8c8d;
+  color: var(--text-muted);
   font-size: 1.2rem;
   margin-bottom: 2rem;
   font-weight: normal;
@@ -57,17 +58,19 @@
 .form-group label {
   display: block;
   margin-bottom: 0.5rem;
-  color: #2c3e50;
+  color: var(--text-main);
   font-weight: 500;
 }
 
 .form-group input {
   width: 100%;
   padding: 0.75rem;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-input);
   border-radius: 4px;
   font-size: 1rem;
-  transition: border-color 0.2s;
+  background-color: var(--input-bg);
+  color: var(--text-normal);
+  transition: border-color 0.2s, background-color 0.3s ease, color 0.3s ease;
 }
 
 .form-group input:focus {
@@ -76,12 +79,12 @@
 }
 
 .error-message {
-  background-color: #fee;
-  color: #c33;
+  background-color: rgba(231, 76, 60, 0.1);
+  color: #e74c3c;
   padding: 0.75rem;
   border-radius: 4px;
   margin-bottom: 1rem;
-  border: 1px solid #fcc;
+  border: 1px solid rgba(231, 76, 60, 0.3);
 }
 
 .btn-primary {
@@ -105,4 +108,3 @@
   background-color: #95a5a6;
   cursor: not-allowed;
 }
-

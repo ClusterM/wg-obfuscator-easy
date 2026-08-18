@@ -2,6 +2,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useEffect, useState } from 'react';
 import { logout } from '../services/auth';
+import ThemeToggle from './ThemeToggle';
 import api from '../services/api';
 import LanguageSelector from './LanguageSelector';
 import './Layout.css';
@@ -69,6 +70,7 @@ export default function Layout() {
                 <span className="slider"></span>
               </label>
             )}
+            <ThemeToggle />
             <LanguageSelector />
             <button onClick={handleLogout} className="btn-logout">
               {t('auth.logout')}
