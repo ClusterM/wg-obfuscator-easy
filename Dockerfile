@@ -1,7 +1,7 @@
 # ---
 # Container with WireGuard Obfuscator binary
 # ---
-FROM clustermeerkat/wg-obfuscator:1.5 AS obf
+FROM clustermeerkat/wg-obfuscator:1.6 AS obf
 
 
 # ---
