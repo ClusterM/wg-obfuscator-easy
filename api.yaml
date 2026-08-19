@@ -435,8 +435,8 @@ paths:
                   description: Override masking type for this client (null to use server default)
                 verbosity_level:
                   type: string
-                  enum: [0, 1, 2, 3, 4]
-                  description: Verbosity level (0-4)
+                  enum: [ERROR, WARNING, INFO, DEBUG, TRACE]
+                  description: Obfuscator log verbosity level for this client
                 enabled:
                   type: boolean
                   description: Enable/disable client
@@ -627,14 +627,10 @@ paths:
                 masking_forced:
                   type: boolean
                   description: Force masking type for all clients
-                obfuscator_verbosity:
-                  type: string
-                  enum: [0, 1, 2, 3, 4]
-                  description: Obfuscator verbosity level (0-4)
                 verbosity_level:
                   type: string
-                  enum: [0, 1, 2, 3, 4]
-                  description: Obfuscator verbosity level (0-4), alias for obfuscator_verbosity
+                  enum: [ERROR, WARNING, INFO, DEBUG, TRACE]
+                  description: Obfuscator log verbosity level
       responses:
         '200':
           description: Configuration updated successfully
@@ -1034,8 +1030,8 @@ components:
         verbosity_level:
           type: string
           nullable: true
-          enum: [0, 1, 2, 3, 4]
-          description: Obfuscator verbosity level for this client
+          enum: [ERROR, WARNING, INFO, DEBUG, TRACE]
+          description: Obfuscator log verbosity level for this client
         enabled:
           type: boolean
           description: Whether client is enabled
@@ -1099,10 +1095,10 @@ components:
         masking_forced:
           type: boolean
           description: Whether masking type is forced for all clients
-        obfuscator_verbosity:
+        verbosity_level:
           type: string
-          enum: [0, 1, 2, 3, 4]
-          description: Obfuscator verbosity level
+          enum: [ERROR, WARNING, INFO, DEBUG, TRACE]
+          description: Obfuscator log verbosity level
 
     ServerStatus:
       type: object

@@ -12,7 +12,7 @@ interface Config {
   obfuscation: boolean;
   allow_clean: boolean;
   obfuscation_key?: string;
-  obfuscator_verbosity: string;
+  verbosity_level: string;
   masking_type: string;
   masking_forced: boolean;
 }
@@ -165,7 +165,7 @@ export default function Config() {
         obfuscation: config.obfuscation,
         allow_clean: config.allow_clean,
         obfuscation_key: config.obfuscation_key,
-        verbosity_level: config.obfuscator_verbosity,
+        verbosity_level: config.verbosity_level,
         masking_type: config.masking_type,
         masking_forced: config.masking_forced,
       });
@@ -428,10 +428,10 @@ export default function Config() {
             </div>
 
             <div className="form-group">
-              <label>{t('config.obfuscatorVerbosity')}</label>
+              <label>{t('config.verbosityLevel')}</label>
               <select
-                value={config.obfuscator_verbosity}
-                onChange={(e) => setConfig({ ...config, obfuscator_verbosity: e.target.value })}
+                value={config.verbosity_level}
+                onChange={(e) => setConfig({ ...config, verbosity_level: e.target.value })}
               >
                 <option value="ERROR">ERROR</option>
                 <option value="WARNING">WARNING</option>
@@ -439,7 +439,7 @@ export default function Config() {
                 <option value="DEBUG">DEBUG</option>
                 <option value="TRACE">TRACE</option>
               </select>
-              <div className="field-description">{t('config.obfuscatorVerbosityDescription')}</div>
+              <div className="field-description">{t('config.verbosityLevelDescription')}</div>
             </div>
           </>
         )}

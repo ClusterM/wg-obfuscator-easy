@@ -97,7 +97,7 @@ def get_config():
             "obfuscation_key": config.get("obfuscation_key", ""),
             "masking_type": config.get("masking_type", DEFAULT_MASKING_TYPE),
             "masking_forced": config.get("masking_forced", False),
-            "obfuscator_verbosity": config.get("verbosity_level", DEFAULT_VERBOSITY_LEVEL)
+            "verbosity_level": config.get("verbosity_level", DEFAULT_VERBOSITY_LEVEL)
         })
     except Exception as e:
         logger.error(f"Error getting config: {e}")
@@ -158,9 +158,9 @@ def update_config():
             config_manager.set("allow_clean", allow_clean, save=False)
             updated = True
         
-        # Validate and update verbosity level
-        if "verbosity_level" in data or "obfuscator_verbosity" in data:
-            verbosity = data.get("verbosity_level") or data.get("obfuscator_verbosity")
+        # Validate and update obfuscator verbosity
+        if "verbosity_level" in data:
+            verbosity = data["verbosity_level"]
             if verbosity not in VERBOSITY_LEVELS:
                 return jsonify({"error": f"verbosity_level must be one of: {', '.join(VERBOSITY_LEVELS)}"}), 400
             config_manager.set("verbosity_level", verbosity, save=False)
@@ -231,7 +231,7 @@ def update_config():
             "obfuscation_key": config.get("obfuscation_key", ""),
             "masking_type": config.get("masking_type", DEFAULT_MASKING_TYPE),
             "masking_forced": config.get("masking_forced", False),
-            "obfuscator_verbosity": config.get("verbosity_level", DEFAULT_VERBOSITY_LEVEL)
+            "verbosity_level": config.get("verbosity_level", DEFAULT_VERBOSITY_LEVEL)
         })
     except Exception as e:
         logger.error(f"Error updating config: {e}")
