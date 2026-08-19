@@ -1002,8 +1002,6 @@ configure_caddy() {
     local caddyfile="/etc/caddy/Caddyfile"
     local site_label
     local acme_email="${ACME_EMAIL}"
-    local global_block=""
-    local tls_block=""
 
     if [ "$mode" = "https" ]; then
         if [ -z "$domain_or_host" ]; then
@@ -1041,7 +1039,31 @@ configure_caddy() {
     if [ "$mode" = "https" ]; then
         if [ "$ssl_mode" = "ip" ]; then
             print_info "$(msg CADDY_IP_SETUP)"
-            tls_block=$(cat <<'EOF'
+        else
+            print_info "$(msg CADDY_DOMAIN_SETUP)"
+        fi
+    fi
+
+    {
+        if [ "$mode" = "https" ] && [ -n "$acme_email" ] && echo "$acme_email" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; then
+            cat <<EOF
+{
+    email $acme_email
+}
+
+EOF
+        fi
+        cat <<EOF
+$site_label {
+    reverse_proxy 127.0.0.1:$http_port {
+        header_up Host {host}
+        header_up X-Real-IP {remote}
+        header_up X-Forwarded-For {remote}
+        header_up X-Forwarded-Proto {scheme}
+    }
+EOF
+        if [ "$mode" = "https" ] && [ "$ssl_mode" = "ip" ]; then
+            cat <<'EOF'
     tls {
         issuer acme {
             dir https://acme-v02.api.letsencrypt.org/directory
@@ -1049,30 +1071,10 @@ configure_caddy() {
             disable_tlsalpn_challenge
         }
     }
-
 EOF
-)
-        else
-            print_info "$(msg CADDY_DOMAIN_SETUP)"
         fi
-        if [ -n "$acme_email" ] && echo "$acme_email" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; then
-            global_block="{
-    email $acme_email
-}
-
-"
-        fi
-    fi
-
-    cat > "$caddyfile" <<EOF
-${global_block}${site_label} {
-    reverse_proxy 127.0.0.1:$http_port {
-        header_up Host {host}
-        header_up X-Real-IP {remote}
-        header_up X-Forwarded-For {remote}
-        header_up X-Forwarded-Proto {scheme}
-    }
-${tls_block}    header {
+        cat <<'EOF'
+    header {
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"
         X-XSS-Protection "1; mode=block"
@@ -1083,6 +1085,7 @@ ${tls_block}    header {
     }
 }
 EOF
+    } > "$caddyfile"
 
     # Create log directory with proper permissions
     mkdir -p /var/log/caddy
@@ -1358,31 +1361,34 @@ main() {
                 KEEP_OLD_HOST_CONFIG=true
                 break
             elif [[ "$REPLY" =~ ^[Nn]$ ]]; then
+                NEW_PASSWORD=true
                 break
             fi
         done
-        while true; do
-            read -p "$(msg RESET_PASSWORD_PROMPT)" -r
-            if [[ "$REPLY" =~ ^[Yy]$ ]]; then
-                echo ""
-                if reset_admin_credentials "$ADMIN_PASSWORD"; then
-                    # Function succeeded
-                    NEW_PASSWORD=true
-                    print_info "$(msg ADMIN_RESET_SUCCESS)"
-                    print_info "$(msg TOKENS_DELETED)"
+        if [ "$KEEP_OLD_HOST_CONFIG" = true ]; then
+            while true; do
+                read -p "$(msg RESET_PASSWORD_PROMPT)" -r
+                if [[ "$REPLY" =~ ^[Yy]$ ]]; then
+                    echo ""
+                    if reset_admin_credentials "$ADMIN_PASSWORD"; then
+                        # Function succeeded
+                        NEW_PASSWORD=true
+                        print_info "$(msg ADMIN_RESET_SUCCESS)"
+                        print_info "$(msg TOKENS_DELETED)"
+                        break
+                    else
+                        # Function failed, show error and continue loop
+                        print_error "$(msg ADMIN_RESET_FAILED)"
+                        read -p "$(msg PRESS_ENTER)" || true
+                        # Continue loop to ask again
+                    fi
+                elif [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Nn]$ ]]; then
+                    echo ""
+                    ADMIN_PASSWORD=""
                     break
-                else
-                    # Function failed, show error and continue loop
-                    print_error "$(msg ADMIN_RESET_FAILED)"
-                    read -p "$(msg PRESS_ENTER)" || true
-                    # Continue loop to ask again
                 fi
-            elif [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Nn]$ ]]; then
-                echo ""
-                ADMIN_PASSWORD=""
-                break
-            fi
-        done
+            done
+        fi
     fi
     if [ "$KEEP_OLD_HOST_CONFIG" = false ]; then
         WEB_PREFIX="/$(generate_prefix)/"
@@ -1558,6 +1564,16 @@ main() {
     done
     if [ $health_check -eq $max_health_checks ]; then
         print_warning "$(msg APP_NOT_READY)"
+    fi
+
+    # Old SQLite credentials survive a settings reset; apply the new password now.
+    if [ "$NEW_PASSWORD" = true ] && [ "$KEEP_OLD_HOST_CONFIG" = false ]; then
+        if reset_admin_credentials "$ADMIN_PASSWORD"; then
+            print_info "$(msg ADMIN_RESET_SUCCESS)"
+            print_info "$(msg TOKENS_DELETED)"
+        else
+            print_error "$(msg ADMIN_RESET_FAILED)"
+        fi
     fi
     
     # Get application version from container
