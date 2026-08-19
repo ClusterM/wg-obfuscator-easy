@@ -140,6 +140,8 @@
     "obfuscation": "Обфускация",
     "enableObfuscation": "Включить обфускацию",
     "enableObfuscationDescription": "Если выключить, сервер будет работать в режиме обычного WireGuard.",
+    "allowClean": "Разрешить необфусцированные подключения",
+    "allowCleanDescription": "Если включено, сервер на том же порту принимает и обычных (чистых) клиентов WireGuard наряду с обфусцированными.",
     "obfuscationKey": "Ключ обфускации",
     "obfuscationKeyPlaceholder": "Введите ключ обфускации",
     "obfuscationKeyDescription": "Ключ обфускации для связи клиентов с сервером. Может быть любой строкой до 300 символов (только ASCII символы).",

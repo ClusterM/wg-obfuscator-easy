@@ -10,6 +10,7 @@ interface Config {
   server_ip: string;
   server_public_key: string;
   obfuscation: boolean;
+  allow_clean: boolean;
   obfuscation_key?: string;
   obfuscator_verbosity: string;
   masking_type: string;
@@ -162,6 +163,7 @@ export default function Config() {
       await api.updateConfig({
         subnet: config.subnet,
         obfuscation: config.obfuscation,
+        allow_clean: config.allow_clean,
         obfuscation_key: config.obfuscation_key,
         verbosity_level: config.obfuscator_verbosity,
         masking_type: config.masking_type,
@@ -366,6 +368,18 @@ export default function Config() {
 
         {config.obfuscation && (
           <>
+            <div className="form-group">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={config.allow_clean === true}
+                  onChange={(e) => setConfig({ ...config, allow_clean: e.target.checked })}
+                />
+                {t('config.allowClean')}
+              </label>
+              <div className="field-description">{t('config.allowCleanDescription')}</div>
+            </div>
+
             <div className="form-group">
               <label>{t('config.obfuscationKey')}</label>
               <div className="input-with-button">

@@ -34,7 +34,8 @@ class ObfuscatorConfigGenerator:
         obfuscation_key: str,
         masking_type: str,
         masking_forced: bool,
-        verbosity_level: str
+        verbosity_level: str,
+        allow_clean: bool = False
     ) -> str:
         """
         Generate obfuscator server configuration file content
@@ -45,6 +46,7 @@ class ObfuscatorConfigGenerator:
             masking_type: Masking type (NONE, STUN, etc.)
             masking_forced: Whether masking type is forced for all clients
             verbosity_level: Verbosity level (ERROR, WARNING, INFO, DEBUG, TRACE)
+            allow_clean: Whether to accept non-obfuscated WireGuard clients
             
         Returns:
             Configuration file content as string
@@ -57,6 +59,9 @@ class ObfuscatorConfigGenerator:
         lines.append(f"source-lport = {external_port}")
         lines.append(f"target = 127.0.0.1:{INTERNAL_WG_PORT}")
         lines.append(f"key = {obfuscation_key}")
+        
+        if allow_clean:
+            lines.append("allow-clean = true")
         
         if masking_forced:
             lines.append(f"masking = {masking_type}")

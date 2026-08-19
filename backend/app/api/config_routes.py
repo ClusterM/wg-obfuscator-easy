@@ -93,10 +93,11 @@ def get_config():
             "server_ip": f"{config['subnet']}.{config['own_ip']}",
             "enabled": config.get("enabled", True),
             "obfuscation": config.get("obfuscation", False),
+            "allow_clean": config.get("allow_clean", False),
             "obfuscation_key": config.get("obfuscation_key", ""),
-            "obfuscator_verbosity": config.get("verbosity_level", DEFAULT_VERBOSITY_LEVEL),
             "masking_type": config.get("masking_type", DEFAULT_MASKING_TYPE),
-            "masking_forced": config.get("masking_forced", False)
+            "masking_forced": config.get("masking_forced", False),
+            "obfuscator_verbosity": config.get("verbosity_level", DEFAULT_VERBOSITY_LEVEL)
         })
     except Exception as e:
         logger.error(f"Error getting config: {e}")
@@ -147,6 +148,14 @@ def update_config():
             if not isinstance(obfuscation_value, bool):
                 return jsonify({"error": "obfuscation must be a boolean"}), 400
             config_manager.set("obfuscation", obfuscation_value, save=False)
+            updated = True
+        
+        # Validate and update allow_clean
+        if "allow_clean" in data:
+            allow_clean = data["allow_clean"]
+            if not isinstance(allow_clean, bool):
+                return jsonify({"error": "allow_clean must be a boolean"}), 400
+            config_manager.set("allow_clean", allow_clean, save=False)
             updated = True
         
         # Validate and update verbosity level
@@ -218,10 +227,11 @@ def update_config():
             "server_ip": f"{config['subnet']}.{config['own_ip']}",
             "enabled": config.get("enabled", True),
             "obfuscation": config.get("obfuscation", False),
+            "allow_clean": config.get("allow_clean", False),
             "obfuscation_key": config.get("obfuscation_key", ""),
-            "obfuscator_verbosity": config.get("verbosity_level", DEFAULT_VERBOSITY_LEVEL),
             "masking_type": config.get("masking_type", DEFAULT_MASKING_TYPE),
-            "masking_forced": config.get("masking_forced", False)
+            "masking_forced": config.get("masking_forced", False),
+            "obfuscator_verbosity": config.get("verbosity_level", DEFAULT_VERBOSITY_LEVEL)
         })
     except Exception as e:
         logger.error(f"Error updating config: {e}")

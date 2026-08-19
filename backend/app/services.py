@@ -72,7 +72,8 @@ class ServiceManager:
                 obfuscation_key=config['obfuscation_key'],
                 masking_type=config.get('masking_type', 'NONE'),
                 masking_forced=config.get('masking_forced', False),
-                verbosity_level=config.get('verbosity_level', 'INFO')
+                verbosity_level=config.get('verbosity_level', 'INFO'),
+                allow_clean=config.get('allow_clean', False)
             )
             ObfuscatorConfigGenerator.save_config_file(obf_config_content)
         

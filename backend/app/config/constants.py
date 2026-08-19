@@ -72,6 +72,7 @@ DEFAULT_WG_CONFIG = {
     "own_ip": 1,
     "enabled": True,
     "obfuscation": True,
+    "allow_clean": False,
     "verbosity_level": DEFAULT_VERBOSITY_LEVEL,
     "masking_type": DEFAULT_MASKING_TYPE,
     "masking_forced": False,

@@ -250,6 +250,7 @@ The obfuscator integrates with [WireGuard Obfuscator](https://github.com/Cluster
 
 Key features:
 - Enable/disable obfuscation
+- Allow non-obfuscated (clean WireGuard) connections alongside obfuscated ones
 - Configure masking types (NONE, STUN)
 - Set obfuscator ports
 - View real-time obfuscator logs
