@@ -104,6 +104,8 @@
     "allowedIPsPlaceholder": "0.0.0.0/0, ::/0",
     "wireguardConfig": "WireGuard Config",
     "obfuscatorConfig": "WireGuard Obfuscator Config",
+    "connectWithoutObfuscation": "Connect without obfuscation",
+    "connectWithObfuscation": "Connect with obfuscation",
     "regenerateKeys": "Regenerate Keys",
     "confirmRegenerateKeys": "Are you sure you want to regenerate client keys? The client will need to update their configuration.",
     "clientKeysRegenerated": "Client keys regenerated successfully",

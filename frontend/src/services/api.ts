@@ -200,9 +200,15 @@ class ApiService {
     return response.data;
   }
 
-  async getClientConfig(username: string, type: 'wireguard' | 'obfuscator' = 'wireguard'): Promise<string> {
+  async getClientConfig(
+    username: string,
+    type: 'wireguard' | 'obfuscator' = 'wireguard',
+    options?: { direct?: boolean }
+  ): Promise<string> {
+    const params = type === 'wireguard' && options?.direct ? { direct: true } : undefined;
     const response = await this.client.get(`/clients/${username}/config/${type}`, {
       responseType: 'text',
+      params,
     });
     return response.data;
   }

@@ -523,6 +523,13 @@ paths:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/Username'
+        - name: direct
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Return a clean (non-obfuscated) WireGuard config. Only allowed when obfuscation and allow_clean are enabled.
       responses:
         '200':
           description: WireGuard configuration file
@@ -530,6 +537,8 @@ paths:
             text/plain:
               schema:
                 type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':

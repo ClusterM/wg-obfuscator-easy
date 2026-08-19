@@ -301,6 +301,19 @@
   word-break: break-all;
 }
 
+.config-group {
+  margin-bottom: 2rem;
+  padding: 1rem 1rem 0.25rem;
+  border: 1px solid var(--border-main);
+  border-radius: 8px;
+}
+
+.config-group h2 {
+  margin: 0 0 1rem;
+  color: var(--text-main);
+  font-size: 1.25rem;
+}
+
 .config-section {
   margin-bottom: 2rem;
 }

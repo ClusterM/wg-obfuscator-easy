@@ -225,7 +225,8 @@ class ClientManager:
         self,
         username: str,
         external_ip: str,
-        external_port: int
+        external_port: int,
+        direct: bool = False
     ) -> str:
         """
         Get WireGuard configuration for a client
@@ -234,6 +235,7 @@ class ClientManager:
             username: Client username
             external_ip: External IP address
             external_port: External port number
+            direct: If True, generate a clean (non-obfuscated) config
             
         Returns:
             WireGuard configuration file content
@@ -247,7 +249,7 @@ class ClientManager:
         config = self.config_manager.main
         client = self.config_manager.get_client(username)
         
-        obfuscation = config.get('obfuscation', False)
+        obfuscation = config.get('obfuscation', False) and not direct
         
         if obfuscation:
             allowed_ips_subnets = self.calculate_allowed_ips(

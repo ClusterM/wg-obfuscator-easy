@@ -104,6 +104,8 @@
     "allowedIPsPlaceholder": "0.0.0.0/0, ::/0",
     "wireguardConfig": "Конфигурация WireGuard",
     "obfuscatorConfig": "Конфигурация WireGuard Obfuscator",
+    "connectWithoutObfuscation": "Подключение без обфускации",
+    "connectWithObfuscation": "Подключение с обфускацией",
     "regenerateKeys": "Пересоздать ключи",
     "confirmRegenerateKeys": "Вы уверены, что хотите пересоздать ключи клиента? Клиенту потребуется обновить конфигурацию.",
     "clientKeysRegenerated": "Ключи клиента успешно пересозданы",

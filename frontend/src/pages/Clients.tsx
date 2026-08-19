@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
 import api from '../services/api';
@@ -31,10 +31,12 @@ export default function Clients() {
   const [newClientEnabled, setNewClientEnabled] = useState(true);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [wireguardConfig, setWireguardConfig] = useState('');
+  const [wireguardDirectConfig, setWireguardDirectConfig] = useState('');
   const [obfuscatorConfig, setObfuscatorConfig] = useState('');
   const [loadingConfigs, setLoadingConfigs] = useState(false);
   const [currentTime, setCurrentTime] = useState(Math.floor(Date.now() / 1000));
   const [serverObfuscationEnabled, setServerObfuscationEnabled] = useState(true);
+  const [serverAllowClean, setServerAllowClean] = useState(false);
   const [serverConfig, setServerConfig] = useState<any>(null);
   const [success, setSuccess] = useState('');
   const [editingClientSettings, setEditingClientSettings] = useState<{
@@ -48,8 +50,9 @@ export default function Clients() {
   const [clientSettingsSuccess, setClientSettingsSuccess] = useState('');
   const clientSettingsErrorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [clientSettingsExpanded, setClientSettingsExpanded] = useState(false);
-  const [qrCodeConfig, setQrCodeConfig] = useState<{ type: 'wireguard' | 'obfuscator', content: string } | null>(null);
+  const [qrCodeConfig, setQrCodeConfig] = useState<{ type: 'wireguard' | 'wireguard-direct' | 'obfuscator', content: string } | null>(null);
   const wireguardConfigRef = useRef<HTMLTextAreaElement | null>(null);
+  const wireguardDirectConfigRef = useRef<HTMLTextAreaElement | null>(null);
   const obfuscatorConfigRef = useRef<HTMLTextAreaElement | null>(null);
 
   const flashElement = (element?: HTMLElement | null) => {
@@ -114,11 +117,48 @@ export default function Clients() {
     try {
       const config = await api.getConfig();
       setServerObfuscationEnabled(config.obfuscation === true);
+      setServerAllowClean(config.allow_clean === true);
       setServerConfig(config);
     } catch (err) {
       console.error('Failed to load server config:', err);
       // Default to true if we can't load config
       setServerObfuscationEnabled(true);
+    }
+  };
+
+  const loadClientConfigs = async (
+    username: string,
+    obfuscationEnabled: boolean,
+    allowClean: boolean,
+    obfuscatorPort?: number
+  ) => {
+    try {
+      const wgConfig = await api.getClientConfig(username, 'wireguard');
+      setWireguardConfig(wgConfig);
+    } catch (err: any) {
+      setWireguardConfig(err.message || t('errors.serverError'));
+    }
+
+    if (obfuscationEnabled && allowClean) {
+      try {
+        const directConfig = await api.getClientConfig(username, 'wireguard', { direct: true });
+        setWireguardDirectConfig(directConfig);
+      } catch (err: any) {
+        setWireguardDirectConfig(err.message || t('errors.serverError'));
+      }
+    } else {
+      setWireguardDirectConfig('');
+    }
+
+    if (obfuscationEnabled && obfuscatorPort) {
+      try {
+        const obConfig = await api.getClientConfig(username, 'obfuscator');
+        setObfuscatorConfig(obConfig);
+      } catch (err: any) {
+        setObfuscatorConfig(err.message || t('errors.serverError'));
+      }
+    } else {
+      setObfuscatorConfig('');
     }
   };
 
@@ -270,21 +310,12 @@ export default function Clients() {
         // Reload configs with new keys
         setLoadingConfigs(true);
         try {
-          const wgConfig = await api.getClientConfig(username, 'wireguard');
-          setWireguardConfig(wgConfig);
-          
-          if (selectedClient.obfuscator_port && serverObfuscationEnabled) {
-            try {
-              const obConfig = await api.getClientConfig(username, 'obfuscator');
-              setObfuscatorConfig(obConfig);
-            } catch (err: any) {
-              setObfuscatorConfig(err.message || t('errors.serverError'));
-            }
-          } else {
-            setObfuscatorConfig('');
-          }
-        } catch (err: any) {
-          setWireguardConfig(err.message || t('errors.serverError'));
+          await loadClientConfigs(
+            username,
+            serverObfuscationEnabled,
+            serverAllowClean,
+            selectedClient.obfuscator_port
+          );
         } finally {
           setLoadingConfigs(false);
         }
@@ -301,6 +332,7 @@ export default function Clients() {
     setSelectedClient(client);
     setLoadingConfigs(true);
     setWireguardConfig('');
+    setWireguardDirectConfig('');
     setObfuscatorConfig('');
     setEditingClientSettings({});
     setClientSettingsError('');
@@ -327,29 +359,17 @@ export default function Clients() {
       // Load server config to check obfuscation setting
       const serverConfig = await api.getConfig();
       const isObfuscationEnabled = serverConfig.obfuscation === true;
+      const isAllowClean = serverConfig.allow_clean === true;
       setServerObfuscationEnabled(isObfuscationEnabled);
+      setServerAllowClean(isAllowClean);
       setServerConfig(serverConfig);
       
-      // Load WireGuard config
-      try {
-        const wgConfig = await api.getClientConfig(client.username, 'wireguard');
-        setWireguardConfig(wgConfig);
-      } catch (err: any) {
-        setWireguardConfig(err.message || t('errors.serverError'));
-      }
-      
-      // Load Obfuscator config only if obfuscation is enabled on server
-      if (isObfuscationEnabled && fullClient.obfuscator_port) {
-        try {
-          const obConfig = await api.getClientConfig(client.username, 'obfuscator');
-          setObfuscatorConfig(obConfig);
-        } catch (err: any) {
-          setObfuscatorConfig(err.message || t('errors.serverError'));
-        }
-      } else {
-        // Obfuscation disabled - set empty config
-        setObfuscatorConfig('');
-      }
+      await loadClientConfigs(
+        client.username,
+        isObfuscationEnabled,
+        isAllowClean,
+        fullClient.obfuscator_port
+      );
     } catch (err: any) {
       setClientSettingsError(err.message || t('errors.serverError'));
     } finally {
@@ -357,8 +377,12 @@ export default function Clients() {
     }
   };
 
-  const copyToClipboard = async (text: string, type: 'wireguard' | 'obfuscator') => {
-    const targetRef = type === 'wireguard' ? wireguardConfigRef : obfuscatorConfigRef;
+  const copyToClipboard = async (text: string, type: 'wireguard' | 'wireguard-direct' | 'obfuscator') => {
+    const targetRef = type === 'obfuscator'
+      ? obfuscatorConfigRef
+      : type === 'wireguard-direct'
+        ? wireguardDirectConfigRef
+        : wireguardConfigRef;
     
     try {
       // Try modern Clipboard API first
@@ -582,21 +606,12 @@ export default function Clients() {
       // Reload configs
       setLoadingConfigs(true);
       try {
-        const wgConfig = await api.getClientConfig(updatedClient.username, 'wireguard');
-        setWireguardConfig(wgConfig);
-        
-        if (updatedClient.obfuscator_port && serverObfuscationEnabled) {
-          try {
-            const obConfig = await api.getClientConfig(updatedClient.username, 'obfuscator');
-            setObfuscatorConfig(obConfig);
-          } catch (err: any) {
-            setObfuscatorConfig(err.message || t('errors.serverError'));
-          }
-        } else {
-          setObfuscatorConfig('');
-        }
-      } catch (err: any) {
-        setWireguardConfig(err.message || t('errors.serverError'));
+        await loadClientConfigs(
+          updatedClient.username,
+          serverObfuscationEnabled,
+          serverAllowClean,
+          updatedClient.obfuscator_port
+        );
       } finally {
         setLoadingConfigs(false);
       }
@@ -616,6 +631,46 @@ export default function Clients() {
       setSavingClientSettings(false);
     }
   };
+
+  const renderConfigField = (
+    title: string,
+    value: string,
+    type: 'wireguard' | 'wireguard-direct' | 'obfuscator',
+    textareaRef: RefObject<HTMLTextAreaElement>
+  ) => (
+    <div className="config-section">
+      <h3>{title}</h3>
+      {loadingConfigs ? (
+        <div className="loading">{t('common.loading')}</div>
+      ) : (
+        <div className="config-field-container">
+          <textarea
+            className="config-textarea copy-highlight-target"
+            value={value}
+            readOnly
+            rows={10}
+            ref={textareaRef}
+          />
+          <div className="config-actions">
+            <button
+              onClick={() => setQrCodeConfig({ type, content: value })}
+              className="btn-secondary btn-qr"
+              disabled={!value}
+            >
+              📱 {t('common.showQR')}
+            </button>
+            <button
+              onClick={() => copyToClipboard(value, type)}
+              className="btn-primary btn-copy"
+              disabled={!value}
+            >
+              📋 {t('common.copy')}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   if (loading) {
     return <div className="loading">{t('common.loading')}</div>;
@@ -1006,72 +1061,49 @@ export default function Clients() {
               )}
             </div>
 
-            <div className="config-section">
-              <h3>{t('clients.wireguardConfig')}</h3>
-              {loadingConfigs ? (
-                <div className="loading">{t('common.loading')}</div>
-              ) : (
-                <div className="config-field-container">
-                  <textarea
-                    className="config-textarea copy-highlight-target"
-                    value={wireguardConfig}
-                    readOnly
-                    rows={10}
-                    ref={wireguardConfigRef}
-                  />
-                  <div className="config-actions">
-                    <button
-                      onClick={() => setQrCodeConfig({ type: 'wireguard', content: wireguardConfig })}
-                      className="btn-secondary btn-qr"
-                      disabled={!wireguardConfig}
-                    >
-                      📱 {t('common.showQR')}
-                    </button>
-                    <button
-                      onClick={() => copyToClipboard(wireguardConfig, 'wireguard')}
-                      className="btn-primary btn-copy"
-                      disabled={!wireguardConfig}
-                    >
-                      📋 {t('common.copy')}
-                    </button>
-                  </div>
+            {serverObfuscationEnabled && serverAllowClean ? (
+              <>
+                <div className="config-group">
+                  <h2>{t('clients.connectWithoutObfuscation')}</h2>
+                  {renderConfigField(
+                    t('clients.wireguardConfig'),
+                    wireguardDirectConfig,
+                    'wireguard-direct',
+                    wireguardDirectConfigRef
+                  )}
                 </div>
-              )}
-            </div>
-
-            <div className="config-section">
-              <h3>{t('clients.obfuscatorConfig')}</h3>
-              {loadingConfigs ? (
-                <div className="loading">{t('common.loading')}</div>
-              ) : (
-                <div className="config-field-container">
-                  <textarea
-                    className="config-textarea copy-highlight-target"
-                    value={obfuscatorConfig}
-                    readOnly
-                    disabled={!serverObfuscationEnabled || !selectedClient.obfuscator_port}
-                    rows={10}
-                    ref={obfuscatorConfigRef}
-                  />
-                  <div className="config-actions">
-                    <button
-                      onClick={() => setQrCodeConfig({ type: 'obfuscator', content: obfuscatorConfig })}
-                      className="btn-secondary btn-qr"
-                      disabled={!serverObfuscationEnabled || !selectedClient.obfuscator_port || !obfuscatorConfig}
-                    >
-                      📱 {t('common.showQR')}
-                    </button>
-                    <button
-                      onClick={() => copyToClipboard(obfuscatorConfig, 'obfuscator')}
-                      className="btn-primary btn-copy"
-                      disabled={!serverObfuscationEnabled || !selectedClient.obfuscator_port || !obfuscatorConfig}
-                    >
-                      📋 {t('common.copy')}
-                    </button>
-                  </div>
+                <div className="config-group">
+                  <h2>{t('clients.connectWithObfuscation')}</h2>
+                  {renderConfigField(
+                    t('clients.wireguardConfig'),
+                    wireguardConfig,
+                    'wireguard',
+                    wireguardConfigRef
+                  )}
+                  {renderConfigField(
+                    t('clients.obfuscatorConfig'),
+                    obfuscatorConfig,
+                    'obfuscator',
+                    obfuscatorConfigRef
+                  )}
                 </div>
-              )}
-            </div>
+              </>
+            ) : (
+              <>
+                {renderConfigField(
+                  t('clients.wireguardConfig'),
+                  wireguardConfig,
+                  'wireguard',
+                  wireguardConfigRef
+                )}
+                {serverObfuscationEnabled && renderConfigField(
+                  t('clients.obfuscatorConfig'),
+                  obfuscatorConfig,
+                  'obfuscator',
+                  obfuscatorConfigRef
+                )}
+              </>
+            )}
 
             <div className="modal-actions">
               <button 
@@ -1112,10 +1144,11 @@ export default function Clients() {
         >
           <div className="modal-content qr-modal">
             <h2>
-              {qrCodeConfig.type === 'wireguard' 
-                ? t('clients.wireguardConfig') 
-                : t('clients.obfuscatorConfig')
-              }
+              {qrCodeConfig.type === 'obfuscator'
+                ? t('clients.obfuscatorConfig')
+                : qrCodeConfig.type === 'wireguard-direct'
+                  ? t('clients.connectWithoutObfuscation')
+                  : t('clients.wireguardConfig')}
             </h2>
             <div className="qr-container">
               <QRCodeSVG

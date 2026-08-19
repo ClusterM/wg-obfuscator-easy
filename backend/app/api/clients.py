@@ -150,17 +150,28 @@ def get_clients():
 def get_client_config_wireguard_endpoint(username):
     """Get WireGuard configuration for specific client"""
     try:
+        direct = request.args.get('direct', 'false').lower() == 'true'
+        config = current_app.config_manager.main
+        if direct:
+            if not config.get('obfuscation', False) or not config.get('allow_clean', False):
+                return jsonify({
+                    "error": "Direct WireGuard config is available only when obfuscation and allow_clean are enabled"
+                }), 400
+        
         client_manager = current_app.client_manager
         external_ip = current_app.external_ip
         external_port = current_app.external_port
         
-        client_config = client_manager.get_client_wg_config(username, external_ip, external_port)
+        client_config = client_manager.get_client_wg_config(
+            username, external_ip, external_port, direct=direct
+        )
+        filename = f"{username}-wireguard-direct.conf" if direct else f"{username}-wireguard.conf"
         response = current_app.response_class(
             response=client_config,
             status=200,
             mimetype='text/plain',
             headers={
-                'Content-Disposition': f'attachment; filename="{username}-wireguard.conf"',
+                'Content-Disposition': f'attachment; filename="{filename}"',
                 'Access-Control-Expose-Headers': 'Content-Disposition'
             }
         )
