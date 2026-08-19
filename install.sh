@@ -962,9 +962,10 @@ reset_admin_credentials() {
         return 1
     fi
 
-    # Update database with new credentials
-    local python_output
-    local python_exit_code
+    # First install: Flask will hash ADMIN_PASSWORD on startup.
+    if [ ! -f "$CONFIG_DIR/wg-easy.db" ]; then
+        return 0
+    fi
 
     # Verify Docker is running
     if ! docker info >/dev/null 2>&1; then
@@ -972,13 +973,15 @@ reset_admin_credentials() {
         return 1
     fi
 
-    # Check if container is running
-    if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
-        print_error "$(msg CONTAINER_NOT_RUNNING "$CONTAINER_NAME")"
-        return 1
-    fi
-    
-    python_output=$(docker exec "$CONTAINER_NAME" python3 reset-creds.py "$provided_password")
+    # Write the hash to the volume before the app starts, so login
+    # does not keep a stale in-memory password from the previous process.
+    local python_output
+    local python_exit_code
+    python_output=$(docker run --rm \
+        --entrypoint python3 \
+        -v "$CONFIG_DIR:/config" \
+        "$IMAGE_NAME" \
+        reset-creds.py "$provided_password" 2>&1)
     python_exit_code=$?
 
     if [ $python_exit_code -ne 0 ]; then
@@ -1369,19 +1372,8 @@ main() {
             while true; do
                 read -p "$(msg RESET_PASSWORD_PROMPT)" -r
                 if [[ "$REPLY" =~ ^[Yy]$ ]]; then
-                    echo ""
-                    if reset_admin_credentials "$ADMIN_PASSWORD"; then
-                        # Function succeeded
-                        NEW_PASSWORD=true
-                        print_info "$(msg ADMIN_RESET_SUCCESS)"
-                        print_info "$(msg TOKENS_DELETED)"
-                        break
-                    else
-                        # Function failed, show error and continue loop
-                        print_error "$(msg ADMIN_RESET_FAILED)"
-                        read -p "$(msg PRESS_ENTER)" || true
-                        # Continue loop to ask again
-                    fi
+                    NEW_PASSWORD=true
+                    break
                 elif [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Nn]$ ]]; then
                     echo ""
                     ADMIN_PASSWORD=""
@@ -1503,6 +1495,16 @@ main() {
         exit 1
     }
 
+    if [ "$NEW_PASSWORD" = true ]; then
+        if reset_admin_credentials "$ADMIN_PASSWORD"; then
+            print_info "$(msg ADMIN_RESET_SUCCESS)"
+            print_info "$(msg TOKENS_DELETED)"
+        else
+            print_error "$(msg ADMIN_RESET_FAILED)"
+            exit 1
+        fi
+    fi
+
     # Run Docker container
     print_info "$(msg STARTING_CONTAINER)"
     docker run -d \
@@ -1564,16 +1566,6 @@ main() {
     done
     if [ $health_check -eq $max_health_checks ]; then
         print_warning "$(msg APP_NOT_READY)"
-    fi
-
-    # Old SQLite credentials survive a settings reset; apply the new password now.
-    if [ "$NEW_PASSWORD" = true ] && [ "$KEEP_OLD_HOST_CONFIG" = false ]; then
-        if reset_admin_credentials "$ADMIN_PASSWORD"; then
-            print_info "$(msg ADMIN_RESET_SUCCESS)"
-            print_info "$(msg TOKENS_DELETED)"
-        else
-            print_error "$(msg ADMIN_RESET_FAILED)"
-        fi
     fi
     
     # Get application version from container

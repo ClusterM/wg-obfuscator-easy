@@ -77,6 +77,7 @@ def login():
         
         config_manager = current_app.config_manager
         token_manager = current_app.token_manager
+        config_manager.reload_main()
         
         # Verify credentials
         config = config_manager.main
@@ -133,6 +134,7 @@ def change_password():
         config_manager = current_app.config_manager
         token_manager = current_app.token_manager
         from ..auth.password import hash_password
+        config_manager.reload_main()
         
         config = config_manager.main
         # Verify old password
@@ -164,6 +166,7 @@ def change_credentials():
         config_manager = current_app.config_manager
         token_manager = current_app.token_manager
         from ..auth.password import hash_password
+        config_manager.reload_main()
         
         config = config_manager.main
         

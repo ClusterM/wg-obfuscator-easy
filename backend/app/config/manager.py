@@ -90,6 +90,10 @@ class ConfigManager:
             logger.error(f"Failed to save clients: {e}")
             raise ConfigError(f"Failed to save clients: {e}")
     
+    def reload_main(self) -> None:
+        """Reload main configuration from the database"""
+        self._load_config()
+
     def get(self, key: str, default: Any = None) -> Any:
         """Get value from main config with optional default"""
         return self.main.get(key, default)
