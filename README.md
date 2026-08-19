@@ -32,15 +32,15 @@ The installation script will:
 1. Check for root privileges
 2. Install Docker and required packages
 3. Detect your server's external IP address
-4. Guide you through obtaining a free Dynu DDNS domain
-5. Generate random configuration values (admin password, web prefix, ports)
-6. Pull and run the Docker container
+4. Generate random configuration values (admin password, web prefix, ports)
+5. Pull and run the Docker container
+6. Offer HTTPS via Let's Encrypt: an IP certificate by default, or your own domain if it already points to the server
 7. Install and configure Caddy (outside the container) for HTTPS with automatic SSL certificates
 8. Display access information and credentials
 
 After installation, you'll receive:
 - HTTP URL to the control panel
-- HTTPS URL - if domain name was provided
+- HTTPS URL (IP by default, or your domain if you chose one)
 - Admin username and password
 
 > **Note:** Caddy is installed outside the Docker container only when using the automated installation script. For manual Docker installations, you'll need to set up HTTPS separately or access the container directly via HTTP.
@@ -186,8 +186,8 @@ The web interface provides:
 ### Accessing the Web Interface
 
 **With automated installation script:**
-- HTTP: `http://your-server-ip/your-prefix/` (direct container access)
-- HTTPS: `https://your-domain.dynu.net/your-prefix/` (via Caddy reverse proxy and Lets Encrypt)
+- HTTP: `http://your-server-ip/your-prefix/`
+- HTTPS: `https://your-server-ip/your-prefix/` (via Caddy reverse proxy and Let's Encrypt; a domain can be used instead)
 
 **With manual Docker installation:**
 - HTTP: `http://your-server-ip:5000/your-prefix/` (direct container access)
@@ -341,9 +341,9 @@ Note: The frontend needs to connect to a running backend container. Configure th
 ### SSL certificate issues
 
 - Caddy is only installed by the automated installation script (outside the container)
-- For Dynu domains (or any other domain you configure), certificates are obtained automatically via Let's Encrypt
+- Certificates are obtained automatically via Let's Encrypt (IP by default, or a domain that already points to the server)
 - Check Caddy logs: `journalctl -u caddy`
-- Verify DNS resolution for your domain
+- For a domain certificate, verify DNS resolution for your domain
 - If using manual installation, set up your own reverse proxy with SSL certificates
 
 ## Contributing

@@ -7,12 +7,11 @@
 # 1. Check for root privileges
 # 2. Install Docker and required packages
 # 3. Detect server IP address
-# 4. Generate a domain using nip.io
-# 5. Generate random configuration (admin password, web prefix, ports)
-# 6. Install and run the Docker container
-# 7. Ask user if they want HTTPS (interactive mode)
-# 8. Configure Caddy for HTTPS with automatic SSL certificates (if enabled)
-# 9. Display access information and credentials
+# 4. Generate random configuration (admin password, web prefix, ports)
+# 5. Install and run the Docker container
+# 6. Offer HTTPS via Let's Encrypt (IP certificate by default, or a domain)
+# 7. Configure Caddy for HTTPS with automatic SSL certificates (if enabled)
+# 8. Display access information and credentials
 #
 # Usage:
 #   wget https://bit.ly/wg-obf -O install.sh && bash install.sh
@@ -79,7 +78,8 @@ declare -A MSG_EN=(
     [CADDY_CONFIGURING]="Configuring Caddy HTTP reverse proxy for host: %s"
     [CADDY_TARGET_PORT]="Configuring Caddy for target port: %s (proxying to %s)"
     [CADDY_BACKUP]="Backing up existing Caddyfile to %s"
-    [CADDY_DOMAIN_SETUP]="Configuring Caddy domain with Let's Encrypt SSL certificate..."
+    [CADDY_DOMAIN_SETUP]="Configuring Caddy with a Let's Encrypt domain certificate..."
+    [CADDY_IP_SETUP]="Configuring Caddy with a Let's Encrypt IP certificate..."
     [CADDY_CONFIG_VALID]="Caddyfile configuration is valid"
     [CADDY_VALIDATION_FAILED]="Caddyfile validation failed, but continuing..."
     [CADDY_RELOADING]="Reloading Caddy configuration..."
@@ -92,7 +92,7 @@ declare -A MSG_EN=(
     [CADDY_RUNNING]="Caddy is running"
     [CADDY_NOT_RUNNING_SYSTEMCTL]="Caddy service may not be running properly. Check logs with: journalctl -u caddy"
     [CADDY_NOT_RUNNING]="Caddy may not be running properly. Check Caddy logs."
-    [DOMAIN_REQUIRED]="Domain is required for HTTPS configuration"
+    [DOMAIN_REQUIRED]="A domain name or IP address is required for HTTPS configuration"
     [SCRIPT_REQUIRES_INTERACTIVE]="================================================"
     [SCRIPT_REQUIRES_INTERACTIVE2]="This script requires interactive mode!"
     [SCRIPT_REQUIRES_INTERACTIVE3]="You cannot run this script through a pipe (curl ... | bash)."
@@ -132,34 +132,23 @@ declare -A MSG_EN=(
     [APP_VERSION]="Application version: v%s"
     [INSTALLED_VERSION_OLD]="Previously installed version: v%s"
     [VERSION_UNKNOWN]="Could not determine application version"
-    [ENABLE_HTTPS_PROMPT]="Do you want to enable HTTPS (recommended)? It requires a domain name, but you can use a free domain name. (Y/n): "
-    [NEED_GUIDE_DYNU]="Do you need a guide how to obtain a free domain name from Dynu? (Y/n/q): "
-    [DYNU_GUIDE_INTRO]="We'll use Dynu to create a free domain name for your server."
-    [DYNU_YOUR_IP]="Your server IP address is: %s"
-    [DYNU_STEPS]="Follow these steps to set up Dynu:"
-    [DYNU_STEP0]="0. Go to the website https://www.dynu.com"
-    [DYNU_STEP1]="1. Create an account (create account) or log in to the site (login)."
-    [DYNU_STEP2]="2. Open Control Panel (if not already open) via the gear icon at the top."
-    [DYNU_STEP3]="3. Click on \"DDNS Services\""
-    [DYNU_STEP4]="4. Click the \"+ Add\" button"
-    [DYNU_STEP5]="5. In the \"Host\" field, enter any name you want to use as the first part of the domain name. The main thing is that this name is not already taken by someone else."
-    [DYNU_STEP6]="6. In the \"Top Level\" field, select the second part of the domain name. Any one you like best. Except those marked \"Members only\" - they are paid."
-    [DYNU_STEP7]="7. Click the \"+ Add\" button."
-    [DYNU_STEP8]="8. In the \"IPv4 Address\" field, enter your server IP address: %s"
-    [DYNU_STEP9]="9. Click the \"Save\" button."
-    [DYNU_STEP10]="10. Done. If you didn't remember, your domain name is written on the gray background, above the \"Last Update\" label."
-    [ENTER_DOMAIN]="Enter your domain name (or enter 'q' to cancel and continue without HTTPS): "
+    [SSL_SETUP]="SSL Certificate Setup"
+    [SSL_CHOICE_INTRO]="Choose how to enable HTTPS. Let's Encrypt will issue the certificate automatically."
+    [SSL_CHOICE_IP]="IP address — no domain needed (recommended)"
+    [SSL_CHOICE_DOMAIN]="Domain name — must already point to this server"
+    [SSL_CHOICE_SKIP]="Skip HTTPS"
+    [SSL_CHOICE_PROMPT]="Choose an option [1]: "
+    [SSL_IP_NOTE]="Issuing a Let's Encrypt certificate for IP %s (renewed automatically)."
+    [SSL_LETSENCRYPT]="Let's Encrypt will automatically provide an SSL certificate."
+    [ENTER_DOMAIN]="Enter your domain name: "
     [DOMAIN_EMPTY]="Domain cannot be empty. Please enter your domain name."
     [DOMAIN_INVALID]="Invalid domain name."
     [CHECKING_DNS]="Checking if domain %s points to your IP address (%s)..."
     [DNS_CONFIGURED]="DNS is correctly configured! Domain %s points to %s."
     [DNS_WAITING]="Waiting for DNS to propagate... (attempt %s/%s)"
-    [DNS_VERIFY_FAILED]="Could not verify DNS configuration automatically. Please check your DNS settings."
-    [DNS_DYNU_NOTE]="If you are using Dynu, please make sure you have added your domain and your server IP address."
-    [DNS_PROPAGATION_NOTE]="It's possible that your DNS is not propagated yet. Please wait some time and try again. Some DNS providers take up to 24 hours to propagate."
+    [DNS_VERIFY_FAILED]="Could not verify that the domain points to this server."
+    [DNS_FALLBACK_IP]="Falling back to an IP certificate."
     [CONTINUE_WITHOUT_HTTPS]="Let's continue without HTTPS for now."
-    [SSL_SETUP]="SSL Certificate Setup"
-    [SSL_LETSENCRYPT]="Let's Encrypt will automatically provide SSL certificates for your domain."
     [SSL_EMAIL_INFO]="You can optionally provide an email address to receive notifications"
     [SSL_EMAIL_INFO2]="when your certificate is about to expire (certificates are renewed automatically)."
     [SSL_EMAIL_OPTIONAL]="This email is completely optional - SSL certificates will work without it."
@@ -253,7 +242,8 @@ declare -A MSG_RU=(
     [CADDY_CONFIGURING]="Настройка HTTP обратного прокси Caddy для хоста: %s"
     [CADDY_TARGET_PORT]="Настройка Caddy для целевого порта: %s (проксирование на %s)"
     [CADDY_BACKUP]="Создание резервной копии Caddyfile в %s"
-    [CADDY_DOMAIN_SETUP]="Настройка домена Caddy с SSL-сертификатом Let's Encrypt..."
+    [CADDY_DOMAIN_SETUP]="Настройка Caddy с доменным сертификатом Let's Encrypt..."
+    [CADDY_IP_SETUP]="Настройка Caddy с IP-сертификатом Let's Encrypt..."
     [CADDY_CONFIG_VALID]="Конфигурация Caddyfile корректна"
     [CADDY_VALIDATION_FAILED]="Проверка Caddyfile не удалась, но продолжаем..."
     [CADDY_RELOADING]="Перезагрузка конфигурации Caddy..."
@@ -266,7 +256,7 @@ declare -A MSG_RU=(
     [CADDY_RUNNING]="Caddy запущен"
     [CADDY_NOT_RUNNING_SYSTEMCTL]="Сервис Caddy может работать некорректно. Проверьте логи: journalctl -u caddy"
     [CADDY_NOT_RUNNING]="Caddy может работать некорректно. Проверьте логи Caddy."
-    [DOMAIN_REQUIRED]="Для настройки HTTPS требуется доменное имя"
+    [DOMAIN_REQUIRED]="Для настройки HTTPS требуется доменное имя или IP-адрес"
     [SCRIPT_REQUIRES_INTERACTIVE]="================================================"
     [SCRIPT_REQUIRES_INTERACTIVE2]="Этот скрипт требует интерактивного режима!"
     [SCRIPT_REQUIRES_INTERACTIVE3]="Вы не можете запустить этот скрипт через pipe (curl ... | bash)."
@@ -306,34 +296,23 @@ declare -A MSG_RU=(
     [APP_VERSION]="Версия приложения: v%s"
     [INSTALLED_VERSION_OLD]="Установленная до этого версия: v%s"
     [VERSION_UNKNOWN]="Не удалось определить версию приложения"
-    [ENABLE_HTTPS_PROMPT]="Хотите включить HTTPS (рекомендуется)? Требуется доменное имя, но вы можете использовать бесплатный домен. (Y/n): "
-    [NEED_GUIDE_DYNU]="Нужна инструкция, как получить бесплатный домен от Dynu? (Y/n/q): "
-    [DYNU_GUIDE_INTRO]="Мы используем Dynu для создания бесплатного доменного имени для вашего сервера."
-    [DYNU_YOUR_IP]="IP-адрес вашего сервера: %s"
-    [DYNU_STEPS]="Следуйте этим шагам для настройки Dynu:"
-    [DYNU_STEP0]="0. Зайти на сайт https://www.dynu.com"
-    [DYNU_STEP1]="1. Создать аккаунт (create account) или войти на сайт (login)."
-    [DYNU_STEP2]="2. Открыть Control Panel (если ещё не открылась) через иконку с шестерёнкой вверху."
-    [DYNU_STEP3]="3. Кликнуть на \"DDNS Services\""
-    [DYNU_STEP4]="4. Нажать кнопку \"+ Add\""
-    [DYNU_STEP5]="5. В поле \"Host\" введите любое имя, которое вы хотите использовать в качестве первой части имени домена. Главное - чтобы это имя ещё не было занято кем-то другим."
-    [DYNU_STEP6]="6. В поле \"Top Level\" выберите вторую часть имени домена. Любую, которая вам больше нравится. Кроме тех, у которых написано \"Members only\" - они платные."
-    [DYNU_STEP7]="7. Нажмите кнопку \"+ Add\"."
-    [DYNU_STEP8]="8. В поле \"IPv4 Address\" введите IP адрес вашего сервера: %s"
-    [DYNU_STEP9]="9. Нажмите кнопку \"Save\"."
-    [DYNU_STEP10]="10. Готово. Если вдруг не запомнили, имя вашего домена написано на сером фоне, над надписью \"Last Update\"."
-    [ENTER_DOMAIN]="Введите ваше доменное имя (или введите 'q' для отмены и продолжения без HTTPS): "
+    [SSL_SETUP]="Настройка SSL-сертификата"
+    [SSL_CHOICE_INTRO]="Выберите, как включить HTTPS. Let's Encrypt выпустит сертификат автоматически."
+    [SSL_CHOICE_IP]="IP-адрес — домен не нужен (рекомендуется)"
+    [SSL_CHOICE_DOMAIN]="Доменное имя — должно уже указывать на этот сервер"
+    [SSL_CHOICE_SKIP]="Пропустить HTTPS"
+    [SSL_CHOICE_PROMPT]="Выберите вариант [1]: "
+    [SSL_IP_NOTE]="Выпуск сертификата Let's Encrypt для IP %s (продлевается автоматически)."
+    [SSL_LETSENCRYPT]="Let's Encrypt автоматически предоставит SSL-сертификат."
+    [ENTER_DOMAIN]="Введите ваше доменное имя: "
     [DOMAIN_EMPTY]="Домен не может быть пустым. Пожалуйста, введите ваше доменное имя."
     [DOMAIN_INVALID]="Некорректное доменное имя."
     [CHECKING_DNS]="Проверка, указывает ли домен %s на ваш IP-адрес (%s)..."
     [DNS_CONFIGURED]="DNS настроен правильно! Домен %s указывает на %s."
     [DNS_WAITING]="Ожидание распространения DNS... (попытка %s/%s)"
-    [DNS_VERIFY_FAILED]="Не удалось автоматически проверить конфигурацию DNS. Пожалуйста, проверьте настройки DNS."
-    [DNS_DYNU_NOTE]="Если вы используете Dynu, убедитесь, что вы добавили свой домен и IP-адрес сервера."
-    [DNS_PROPAGATION_NOTE]="Возможно, ваш DNS ещё не распространился. Подождите некоторое время и попробуйте снова. Некоторым DNS-провайдерам требуется до 24 часов для распространения."
+    [DNS_VERIFY_FAILED]="Не удалось проверить, что домен указывает на этот сервер."
+    [DNS_FALLBACK_IP]="Переключаемся на IP-сертификат."
     [CONTINUE_WITHOUT_HTTPS]="Продолжим без HTTPS пока что."
-    [SSL_SETUP]="Настройка SSL-сертификата"
-    [SSL_LETSENCRYPT]="Let's Encrypt автоматически предоставит SSL-сертификаты для вашего домена."
     [SSL_EMAIL_INFO]="Вы можете опционально указать адрес электронной почты для получения уведомлений,"
     [SSL_EMAIL_INFO2]="когда ваш сертификат истекает (сертификаты продлеваются автоматически)."
     [SSL_EMAIL_OPTIONAL]="Этот email полностью опционален - SSL-сертификаты будут работать и без него."
@@ -862,6 +841,10 @@ get_external_ip() {
     return 1
 }
 
+is_ipv4() {
+    [[ "$1" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]
+}
+
 resolve_domain_ipv4() {
     local domain="$1"
     local ip
@@ -1015,9 +998,12 @@ configure_caddy() {
     local http_port=$2
     local web_prefix=${3:-/}
     local mode=${4:-https}
+    local ssl_mode=${5:-}
     local caddyfile="/etc/caddy/Caddyfile"
     local site_label
     local acme_email="${ACME_EMAIL}"
+    local global_block=""
+    local tls_block=""
 
     if [ "$mode" = "https" ]; then
         if [ -z "$domain_or_host" ]; then
@@ -1025,6 +1011,13 @@ configure_caddy() {
             return 1
         fi
         site_label="$domain_or_host"
+        if [ -z "$ssl_mode" ]; then
+            if is_ipv4 "$site_label"; then
+                ssl_mode="ip"
+            else
+                ssl_mode="domain"
+            fi
+        fi
     else
         if [ -z "$domain_or_host" ]; then
             site_label=":80"
@@ -1046,65 +1039,40 @@ configure_caddy() {
     fi
 
     if [ "$mode" = "https" ]; then
-        print_info "$(msg CADDY_DOMAIN_SETUP)"
+        if [ "$ssl_mode" = "ip" ]; then
+            print_info "$(msg CADDY_IP_SETUP)"
+            tls_block=$(cat <<'EOF'
+    tls {
+        issuer acme {
+            dir https://acme-v02.api.letsencrypt.org/directory
+            profile shortlived
+            disable_tlsalpn_challenge
+        }
+    }
+
+EOF
+)
+        else
+            print_info "$(msg CADDY_DOMAIN_SETUP)"
+        fi
         if [ -n "$acme_email" ] && echo "$acme_email" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; then
-            cat > "$caddyfile" <<EOF
-{
+            global_block="{
     email $acme_email
 }
 
-$site_label {
-    reverse_proxy 127.0.0.1:$http_port {
-        header_up Host {host}
-        header_up X-Real-IP {remote}
-        header_up X-Forwarded-For {remote}
-        header_up X-Forwarded-Proto {scheme}
-    }
-
-    header {
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options "DENY"
-        X-XSS-Protection "1; mode=block"
-    }
-
-    log {
-        output file /var/log/caddy/access.log
-    }
-}
-EOF
-        else
-            cat > "$caddyfile" <<EOF
-$site_label {
-    reverse_proxy 127.0.0.1:$http_port {
-        header_up Host {host}
-        header_up X-Real-IP {remote}
-        header_up X-Forwarded-For {remote}
-        header_up X-Forwarded-Proto {scheme}
-    }
-
-    header {
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options "DENY"
-        X-XSS-Protection "1; mode=block"
-    }
-
-    log {
-        output file /var/log/caddy/access.log
-    }
-}
-EOF
+"
         fi
-    else
-        cat > "$caddyfile" <<EOF
-$site_label {
+    fi
+
+    cat > "$caddyfile" <<EOF
+${global_block}${site_label} {
     reverse_proxy 127.0.0.1:$http_port {
         header_up Host {host}
         header_up X-Real-IP {remote}
         header_up X-Forwarded-For {remote}
         header_up X-Forwarded-Proto {scheme}
     }
-
-    header {
+${tls_block}    header {
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"
         X-XSS-Protection "1; mode=block"
@@ -1115,7 +1083,6 @@ $site_label {
     }
 }
 EOF
-    fi
 
     # Create log directory with proper permissions
     mkdir -p /var/log/caddy
@@ -1200,6 +1167,110 @@ EOF
     return 1
 }
 
+infer_ssl_mode() {
+    if [ "${ENABLE_HTTPS}" != true ]; then
+        SSL_MODE=""
+        return
+    fi
+    if [ -n "${SSL_MODE:-}" ]; then
+        return
+    fi
+    if is_ipv4 "${DOMAIN:-}"; then
+        SSL_MODE="ip"
+    elif [ -n "${DOMAIN:-}" ]; then
+        SSL_MODE="domain"
+    else
+        SSL_MODE="ip"
+        DOMAIN="$EXTERNAL_IP"
+    fi
+}
+
+prompt_ssl_setup() {
+    ENABLE_HTTPS=false
+    SSL_MODE=""
+    DOMAIN=""
+
+    echo ""
+    print_info "$(msg SSL_SETUP)"
+    print_info "$(msg SSL_CHOICE_INTRO)"
+    echo ""
+    echo "  1) $(msg SSL_CHOICE_IP)"
+    echo "  2) $(msg SSL_CHOICE_DOMAIN)"
+    echo "  3) $(msg SSL_CHOICE_SKIP)"
+    echo ""
+
+    while true; do
+        read -p "$(msg SSL_CHOICE_PROMPT)" -r
+        local choice="${REPLY// /}"
+        if [[ -z "$choice" || "$choice" == "1" ]]; then
+            ENABLE_HTTPS=true
+            SSL_MODE="ip"
+            DOMAIN="$EXTERNAL_IP"
+            print_info "$(msg SSL_IP_NOTE "$EXTERNAL_IP")"
+            return
+        elif [[ "$choice" == "2" ]]; then
+            while true; do
+                read -p "$(msg ENTER_DOMAIN)" -r
+                local domain="${REPLY// /}"
+                if [ -z "$domain" ]; then
+                    print_error "$(msg DOMAIN_EMPTY)"
+                    echo ""
+                    continue
+                fi
+                if ! echo "$domain" | grep -qE '^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; then
+                    print_error "$(msg DOMAIN_INVALID)"
+                    echo ""
+                    continue
+                fi
+                ENABLE_HTTPS=true
+                SSL_MODE="domain"
+                DOMAIN="$domain"
+                return
+            done
+        elif [[ "$choice" == "3" ]]; then
+            ENABLE_HTTPS=false
+            SSL_MODE=""
+            DOMAIN=""
+            return
+        fi
+    done
+}
+
+prompt_acme_email() {
+    print_info "$(msg SSL_LETSENCRYPT)"
+    print_info "$(msg SSL_EMAIL_INFO)"
+    print_info "$(msg SSL_EMAIL_INFO2)"
+    print_info "$(msg SSL_EMAIL_OPTIONAL)"
+    echo ""
+    while true; do
+        read -p "$(msg EMAIL_PROMPT)" -r
+        if [ -z "$REPLY" ]; then
+            echo ""
+            ACME_EMAIL=""
+            print_info "$(msg EMAIL_SKIPPED)"
+            break
+        elif echo "$REPLY" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; then
+            echo ""
+            ACME_EMAIL="$REPLY"
+            print_info "$(msg EMAIL_SET "$ACME_EMAIL")"
+            print_info "$(msg EMAIL_NOTIFICATIONS)"
+            break
+        else
+            echo ""
+            print_error "$(msg EMAIL_INVALID)"
+            print_error "$(msg EMAIL_INVALID_FORMAT)"
+            print_error "$(msg EMAIL_SKIP_NOTE)"
+        fi
+    done
+}
+
+use_ip_certificate() {
+    ENABLE_HTTPS=true
+    SSL_MODE="ip"
+    DOMAIN="$EXTERNAL_IP"
+    print_info "$(msg SSL_IP_NOTE "$EXTERNAL_IP")"
+}
+
 # Main installation function
 main() {
     # Check if we can read from stdin (interactive mode required)
@@ -1273,6 +1344,9 @@ main() {
     KEEP_OLD_HOST_CONFIG=false
     OLD_APP_VERSION=""
     NEW_PASSWORD=false
+    ENABLE_HTTPS=false
+    SSL_MODE=""
+    DOMAIN=""
     ADMIN_PASSWORD=$(generate_password)
     if [ -f "$CONFIG_FILE" ]; then
         OLD_APP_VERSION=$(get_app_version "$CONTAINER_NAME")
@@ -1500,136 +1574,43 @@ main() {
     fi    
 
     if [ "$KEEP_OLD_HOST_CONFIG" = false ]; then
+        prompt_ssl_setup
         echo ""
-        while true; do
-            read -p "$(msg ENABLE_HTTPS_PROMPT)" -r
-            if [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Yy]$ ]]; then
-                ENABLE_HTTPS=true
-                break
-            elif [[ "$REPLY" =~ ^[Nn]$ ]]; then
-                ENABLE_HTTPS=false
-                break
-            fi
-        done
-
-        if [ "$ENABLE_HTTPS" = true ]; then
-            # TODO: check reverse DNS for the domain, which should point to the server IP address
-            while true; do
-                read -p "$(msg NEED_GUIDE_DYNU)" -r
-                if [[ "$REPLY" =~ ^[Qq]$ ]]; then
-                    ENABLE_HTTPS=false
-                    break
-                elif [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Yy]$ ]]; then
-                    echo ""
-                    print_info "$(msg DYNU_GUIDE_INTRO)"
-                    print_info "$(msg DYNU_YOUR_IP "$EXTERNAL_IP")"
-                    echo ""
-                    print_info "$(msg DYNU_STEPS)"
-                    echo ""
-                    print_info "$(msg DYNU_STEP0)"
-                    print_info "$(msg DYNU_STEP1)"
-                    print_info "$(msg DYNU_STEP2)"
-                    print_info "$(msg DYNU_STEP3)"
-                    print_info "$(msg DYNU_STEP4)"
-                    print_info "$(msg DYNU_STEP5)"
-                    print_info "$(msg DYNU_STEP6)"
-                    print_info "$(msg DYNU_STEP7)"
-                    print_info "$(msg DYNU_STEP8 "$EXTERNAL_IP")"
-                    print_info "$(msg DYNU_STEP9)"
-                    print_info "$(msg DYNU_STEP10)"
-                    echo ""
-                    break
-                elif [[ "$REPLY" =~ ^[Nn]$ ]]; then
-                    break
-                fi
-            done
-        fi
-
-        DOMAIN=""
-        if [ "$ENABLE_HTTPS" = true ]; then
-            while true; do
-                read -p "$(msg ENTER_DOMAIN)" -r
-                if [[ "$REPLY" =~ ^[Qq]$ ]]; then
-                    ENABLE_HTTPS=false
-                    break
-                fi
-                DOMAIN="$REPLY"
-                if [ -z "$DOMAIN" ]; then
-                    print_error "$(msg DOMAIN_EMPTY)"
-                    echo ""
-                    continue
-                fi
-                if ! echo "$DOMAIN" | grep -qE '^[a-zA-Z0-9\.-]+\.[a-zA-Z]{2,}$'; then
-                    print_error "$(msg DOMAIN_INVALID)"
-                    echo ""
-                    continue
-                fi
-                break
-            done
-        fi
-        echo ""
+    else
+        infer_ssl_mode
     fi
 
     DNS_RESOLVED=false
-    if [ "$ENABLE_HTTPS" = true ]; then
+    if [ "$ENABLE_HTTPS" = true ] && [ "$SSL_MODE" = "domain" ]; then
         print_info "$(msg CHECKING_DNS "$DOMAIN" "$EXTERNAL_IP")"
-        
+
         # Wait a bit for DNS to propagate
         sleep 5
-        
+
         # Check DNS resolution
         local max_dns_checks=12
         local dns_check=0
-        
+
         while [ $dns_check -lt $max_dns_checks ]; do
             local resolved_ip=$(resolve_domain_ipv4 "$DOMAIN" 2>/dev/null)
- 
+
             if [ "$resolved_ip" = "$EXTERNAL_IP" ]; then
                 DNS_RESOLVED=true
                 print_info "$(msg DNS_CONFIGURED "$DOMAIN" "$EXTERNAL_IP")"
                 break
             fi
- 
+
             print_info "$(msg DNS_WAITING "$((dns_check + 1))" "$max_dns_checks")"
             sleep 10
             dns_check=$((dns_check + 1))
         done
-        
+
         if [ "$DNS_RESOLVED" = false ]; then
             print_warning "$(msg DNS_VERIFY_FAILED)"
-            print_warning "$(msg DNS_DYNU_NOTE)"
-            print_warning "$(msg DNS_PROPAGATION_NOTE)"
-            print_info "$(msg CONTINUE_WITHOUT_HTTPS)"
-            ENABLE_HTTPS=false
+            print_warning "$(msg DNS_FALLBACK_IP)"
+            use_ip_certificate
         elif [ "$KEEP_OLD_HOST_CONFIG" = false ]; then
-            print_info "$(msg SSL_SETUP)"
-            print_info "$(msg SSL_LETSENCRYPT)"
-            print_info "$(msg SSL_EMAIL_INFO)"
-            print_info "$(msg SSL_EMAIL_INFO2)"
-            print_info "$(msg SSL_EMAIL_OPTIONAL)"
-            echo ""
-            while true; do
-                read -p "$(msg EMAIL_PROMPT)" -r
-                if [ -z "$REPLY" ]; then
-                    # Empty email - that's fine
-                    echo ""
-                    ACME_EMAIL=""
-                    print_info "$(msg EMAIL_SKIPPED)"
-                    break
-                elif echo "$REPLY" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; then
-                    # Valid email
-                    echo ""
-                    ACME_EMAIL="$REPLY"
-                    print_info "$(msg EMAIL_SET "$ACME_EMAIL")"
-                    print_info "$(msg EMAIL_NOTIFICATIONS)"
-                    break
-                else
-                    echo ""
-                    print_error "$(msg EMAIL_INVALID)"
-                    print_error "$(msg EMAIL_INVALID_FORMAT)"
-                    print_error "$(msg EMAIL_SKIP_NOTE)"
-                fi
-            done
+            prompt_acme_email
         fi
     fi
 
@@ -1644,7 +1625,7 @@ main() {
         print_info "$(msg HTTPS_SETUP)"
         
         # Configure Caddy
-        if ! configure_caddy "$DOMAIN" "$HTTP_PORT" "$WEB_PREFIX" "https"; then
+        if ! configure_caddy "$DOMAIN" "$HTTP_PORT" "$WEB_PREFIX" "https" "$SSL_MODE"; then
             print_warning "$(msg HTTPS_FAILED)"
             systemctl stop caddy
             systemctl disable caddy
@@ -1754,6 +1735,7 @@ main() {
     cat > "$CONFIG_FILE" <<EOF
 DOMAIN="$DOMAIN"
 ENABLE_HTTPS="$ENABLE_HTTPS"
+SSL_MODE="$SSL_MODE"
 HTTP_PORT="$HTTP_PORT_REAL"
 WEB_PREFIX="$WEB_PREFIX"
 WIREGUARD_PORT="$WIREGUARD_PORT"
