@@ -644,7 +644,6 @@ export default function Config() {
             onChange={(e) => setNewPassword(e.target.value)}
             placeholder={t('config.newPassword')}
           />
-          <small>Leave empty to keep current password</small>
         </div>
 
         {newPassword && (

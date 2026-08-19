@@ -180,7 +180,7 @@
     "systemTimezone": "System Timezone",
     "currentTimezone": "Current Timezone",
     "timezone": "Timezone",
-    "timezoneDescription": "System timezone affects only timestamps in logs. Changes apply immediately without restarting the container.",
+    "timezoneDescription": "System timezone affects only timestamps in logs.",
     "timezoneUpdated": "Timezone updated successfully.",
     "adminCredentials": "Admin Credentials",
     "currentUsername": "Current Username",
