@@ -247,17 +247,28 @@ class ClientManager:
         else:
             exclude = exclude_subnets
         
-        final_ranges = []
-        # Exclude each subnet
+        # Apply exclusions cumulatively: every exclusion must be applied to the
+        # result of the previous one, otherwise excluding several subnets from
+        # the same range produces a union that still covers all of them.
+        remaining = list(allowed)
         for exclude_subnet in exclude:
-            for net in allowed:
-                if exclude_subnet.overlaps(net):
-                    subnets = list(net.address_exclude(exclude_subnet))
-                    final_ranges.extend(subnets)
-                else:
-                    final_ranges.append(net)
+            next_ranges = []
+            for net in remaining:
+                if not exclude_subnet.overlaps(net):
+                    next_ranges.append(net)
+                elif exclude_subnet.subnet_of(net):
+                    next_ranges.extend(net.address_exclude(exclude_subnet))
+                # else: net lies entirely inside the excluded subnet, drop it
+            remaining = next_ranges
         
-        return [str(subnet) for subnet in final_ranges]
+        # Merge adjacent ranges back together, grouped by IP version
+        collapsed = []
+        for version in (4, 6):
+            nets = [net for net in remaining if net.version == version]
+            if nets:
+                collapsed.extend(ipaddress.collapse_addresses(nets))
+        
+        return [str(subnet) for subnet in collapsed]
     
     def get_client_wg_config(
         self,
