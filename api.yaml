@@ -416,6 +416,9 @@ paths:
             schema:
               type: object
               properties:
+                enabled:
+                  type: boolean
+                  description: Enable/disable client
                 allowed_ips:
                   type: array
                   items:
@@ -433,13 +436,14 @@ paths:
                   nullable: true
                   enum: [none, obfs4, scramblesuit]
                   description: Override masking type for this client (null to use server default)
+                preshared_key:
+                  type: string
+                  nullable: true
+                  description: WireGuard preshared key (null to disable)
                 verbosity_level:
                   type: string
                   enum: [ERROR, WARNING, INFO, DEBUG, TRACE]
                   description: Obfuscator log verbosity level for this client
-                enabled:
-                  type: boolean
-                  description: Enable/disable client
       responses:
         '200':
           description: Client updated successfully
@@ -479,6 +483,31 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/clients/generate-preshared-key:
+    post:
+      tags:
+        - Clients
+      summary: Generate a preshared key
+      description: Generate a new WireGuard preshared key without saving it
+      operationId: generatePresharedKey
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Preshared key generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  preshared_key:
+                    type: string
+                    description: Newly generated WireGuard preshared key
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -1022,6 +1051,10 @@ components:
           type: string
         private_key:
           type: string
+        preshared_key:
+          type: string
+          nullable: true
+          description: Optional WireGuard preshared key
         allowed_ips:
           type: array
           items:

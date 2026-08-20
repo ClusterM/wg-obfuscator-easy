@@ -243,6 +243,7 @@ WireGuard settings are managed through the web interface or API. Key settings in
 - Subnet configuration
 - WAN interface
 - WireGuard interface name
+- WireGuard keys
 - Obfuscation settings
 
 ### Obfuscator Configuration

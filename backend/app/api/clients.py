@@ -308,6 +308,20 @@ def create_client():
         return jsonify({"error": str(e)}), 400
 
 
+@bp.route('/generate-preshared-key', methods=['POST'])
+@require_auth
+def generate_preshared_key():
+    """Generate a new WireGuard preshared key without saving it"""
+    try:
+        client_manager = current_app.client_manager
+        return jsonify({
+            "preshared_key": client_manager.generate_preshared_key()
+        })
+    except Exception as e:
+        logger.error(f"Error generating preshared key: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 @bp.route('/<username>', methods=['PATCH'])
 @require_auth
 def update_client(username):
@@ -397,6 +411,21 @@ def update_client(username):
                 return jsonify({"error": "enabled must be a boolean"}), 400
             client["enabled"] = enabled
             updated = True
+
+        if "preshared_key" in data:
+            from ..clients.manager import ClientManager
+            preshared_key = data["preshared_key"]
+            if preshared_key is None:
+                client["preshared_key"] = None
+                updated = True
+            elif not isinstance(preshared_key, str) or not preshared_key.strip():
+                return jsonify({"error": "preshared_key must be a valid WireGuard key or null"}), 400
+            else:
+                preshared_key = preshared_key.strip()
+                if not ClientManager.is_valid_wireguard_key(preshared_key):
+                    return jsonify({"error": "preshared_key must be a valid WireGuard key or null"}), 400
+                client["preshared_key"] = preshared_key
+                updated = True
         
         if updated:
             # Ensure latest_handshake is preserved

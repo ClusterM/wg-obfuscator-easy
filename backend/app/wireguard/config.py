@@ -77,6 +77,8 @@ class WireGuardConfigGenerator:
             lines.append("[Peer]")
             lines.append(f"# {client_name}")
             lines.append(f"PublicKey = {client['public_key']}")
+            if client.get('preshared_key'):
+                lines.append(f"PresharedKey = {client['preshared_key']}")
             lines.append(f"AllowedIPs = {config['subnet']}.{client['ip']}/32")
             lines.append("PersistentKeepalive = 25")
         
@@ -117,6 +119,8 @@ class WireGuardConfigGenerator:
         lines.append("")
         lines.append("[Peer]")
         lines.append(f"PublicKey = {config['server_public_key']}")
+        if client.get('preshared_key'):
+            lines.append(f"PresharedKey = {client['preshared_key']}")
         lines.append(f"AllowedIPs = {', '.join(allowed_ips)}")
         
         if obfuscation:

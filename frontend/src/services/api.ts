@@ -205,6 +205,11 @@ class ApiService {
     return response.data;
   }
 
+  async generatePresharedKey() {
+    const response = await this.client.post('/clients/generate-preshared-key');
+    return response.data;
+  }
+
   async getClientConfig(
     username: string,
     type: 'wireguard' | 'obfuscator' = 'wireguard',

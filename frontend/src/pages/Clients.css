@@ -605,6 +605,19 @@
   font-weight: 500;
 }
 
+.client-settings-section .form-group label.checkbox-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.client-settings-section .form-group input[type="checkbox"] {
+  margin-right: 0.5rem;
+  width: auto;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 .client-settings-section .form-group input[type="text"],
 .client-settings-section .form-group input[type="number"],
 .client-settings-section .form-group select {
@@ -617,6 +630,26 @@
   font-size: 1rem;
   transition: border-color 0.2s, background-color 0.3s ease, color 0.3s ease;
   box-sizing: border-box;
+}
+
+.client-settings-section .input-with-button {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.client-settings-section .input-with-button input {
+  flex: 1;
+  width: auto;
+}
+
+.client-settings-section .form-group input.mono {
+  font-family: 'Courier New', monospace;
+}
+
+.client-settings-section .btn-generate-key {
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .client-settings-section .form-group input[type="text"]:focus,

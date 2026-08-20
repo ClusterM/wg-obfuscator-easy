@@ -10,6 +10,7 @@ interface Client {
   ip_full?: string;
   public_key: string;
   private_key?: string;
+  preshared_key?: string | null;
   allowed_ips?: string[];
   obfuscator_port?: number;
   masking_type_override?: string;
@@ -20,6 +21,17 @@ interface Client {
   rx_bytes?: number;
   tx_bytes?: number;
 }
+
+const isValidWireGuardKey = (key: string): boolean => {
+  if (!key || typeof key !== 'string') return false;
+  try {
+    const raw = atob(key);
+    if (raw.length !== 32) return false;
+    return btoa(raw) === key;
+  } catch {
+    return false;
+  }
+};
 
 export default function Clients() {
   const { t } = useTranslation();
@@ -44,8 +56,11 @@ export default function Clients() {
     obfuscator_port?: number;
     verbosity_level?: string | null;
     allowed_ips?: string[];
+    preshared_key_enabled?: boolean;
+    preshared_key?: string;
   }>({});
   const [savingClientSettings, setSavingClientSettings] = useState(false);
+  const [generatingPresharedKey, setGeneratingPresharedKey] = useState(false);
   const [clientSettingsError, setClientSettingsError] = useState('');
   const [clientSettingsSuccess, setClientSettingsSuccess] = useState('');
   const clientSettingsErrorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -354,6 +369,8 @@ export default function Clients() {
         obfuscator_port: fullClient.obfuscator_port,
         verbosity_level: fullClient.verbosity_level || 'INFO',
         allowed_ips: fullClient.allowed_ips || ['0.0.0.0/0'],
+        preshared_key_enabled: Boolean(fullClient.preshared_key),
+        preshared_key: fullClient.preshared_key || '',
       });
       
       // Load server config to check obfuscation setting
@@ -506,6 +523,28 @@ export default function Clients() {
     setEditingClientSettings({ ...editingClientSettings, allowed_ips: newAllowedIps });
   };
 
+  const handleGeneratePresharedKey = async () => {
+    try {
+      setGeneratingPresharedKey(true);
+      setClientSettingsSuccess('');
+      setClientSettingsError('');
+      const result = await api.generatePresharedKey();
+      setEditingClientSettings((prev) => ({
+        ...prev,
+        preshared_key_enabled: true,
+        preshared_key: result.preshared_key,
+      }));
+    } catch (err: any) {
+      setClientSettingsError(err.message || t('errors.serverError'));
+      if (clientSettingsErrorTimeoutRef.current) {
+        clearTimeout(clientSettingsErrorTimeoutRef.current);
+      }
+      clientSettingsErrorTimeoutRef.current = setTimeout(() => setClientSettingsError(''), 5000);
+    } finally {
+      setGeneratingPresharedKey(false);
+    }
+  };
+
   const handleRemoveAllowedIp = (index: number) => {
     // Clear success message
     setClientSettingsSuccess('');
@@ -541,6 +580,26 @@ export default function Clients() {
       if (!validateCidr(ip)) {
         setClientSettingsError(t('clients.allowedIpsInvalidFormat'));
         // Auto-hide error after 5 seconds
+        if (clientSettingsErrorTimeoutRef.current) {
+          clearTimeout(clientSettingsErrorTimeoutRef.current);
+        }
+        clientSettingsErrorTimeoutRef.current = setTimeout(() => setClientSettingsError(''), 5000);
+        return;
+      }
+    }
+
+    if (editingClientSettings.preshared_key_enabled) {
+      const presharedKey = (editingClientSettings.preshared_key || '').trim();
+      if (!presharedKey) {
+        setClientSettingsError(t('clients.presharedKeyEmpty'));
+        if (clientSettingsErrorTimeoutRef.current) {
+          clearTimeout(clientSettingsErrorTimeoutRef.current);
+        }
+        clientSettingsErrorTimeoutRef.current = setTimeout(() => setClientSettingsError(''), 5000);
+        return;
+      }
+      if (!isValidWireGuardKey(presharedKey)) {
+        setClientSettingsError(t('clients.presharedKeyInvalid'));
         if (clientSettingsErrorTimeoutRef.current) {
           clearTimeout(clientSettingsErrorTimeoutRef.current);
         }
@@ -593,6 +652,9 @@ export default function Clients() {
         // Always send verbosity_level, default to INFO if not set
         updateData.verbosity_level = editingClientSettings.verbosity_level || 'INFO';
       }
+      updateData.preshared_key = editingClientSettings.preshared_key_enabled
+        ? (editingClientSettings.preshared_key || '').trim()
+        : null;
 
       const updatedClient = await api.updateClient(selectedClient.username, updateData);
       setSelectedClient({ ...selectedClient, ...updatedClient });
@@ -601,6 +663,8 @@ export default function Clients() {
         obfuscator_port: updatedClient.obfuscator_port,
         verbosity_level: updatedClient.verbosity_level || 'INFO',
         allowed_ips: updatedClient.allowed_ips || ['0.0.0.0/0'],
+        preshared_key_enabled: Boolean(updatedClient.preshared_key),
+        preshared_key: updatedClient.preshared_key || '',
       });
       
       // Reload configs
@@ -905,6 +969,13 @@ export default function Clients() {
                       <td className="detail-value mono small">{selectedClient.private_key}</td>
                     </tr>
                   )}
+
+                  {selectedClient.preshared_key && (
+                    <tr>
+                      <td className="detail-label">{t('clients.presharedKey')}:</td>
+                      <td className="detail-value mono small">{selectedClient.preshared_key}</td>
+                    </tr>
+                  )}
                   
                   <tr>
                     <td className="detail-label">{t('clients.connection')}:</td>
@@ -955,6 +1026,60 @@ export default function Clients() {
               
               {clientSettingsExpanded && (
                 <div className="settings-content">
+                  <div className="form-group">
+                    <label className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={editingClientSettings.preshared_key_enabled === true}
+                        onChange={(e) => {
+                          setClientSettingsSuccess('');
+                          setEditingClientSettings({
+                            ...editingClientSettings,
+                            preshared_key_enabled: e.target.checked,
+                          });
+                        }}
+                      />
+                      {t('clients.enablePresharedKey')}
+                    </label>
+                    <div className="field-description">{t('clients.enablePresharedKeyDescription')}</div>
+                  </div>
+
+                  {editingClientSettings.preshared_key_enabled && (
+                    <div className="form-group">
+                      <label>{t('clients.presharedKey')}</label>
+                      <div className="input-with-button">
+                        <input
+                          type="text"
+                          value={editingClientSettings.preshared_key || ''}
+                          onChange={(e) => {
+                            setClientSettingsSuccess('');
+                            setEditingClientSettings({
+                              ...editingClientSettings,
+                              preshared_key: e.target.value,
+                            });
+                          }}
+                          placeholder={t('clients.presharedKeyPlaceholder')}
+                          className={`mono ${
+                            editingClientSettings.preshared_key &&
+                            !isValidWireGuardKey(editingClientSettings.preshared_key.trim())
+                              ? 'invalid'
+                              : ''
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleGeneratePresharedKey}
+                          disabled={generatingPresharedKey}
+                          className="btn-secondary btn-generate-key"
+                          title={t('clients.generatePresharedKey')}
+                        >
+                          {generatingPresharedKey ? t('common.loading') : t('clients.generatePresharedKey')}
+                        </button>
+                      </div>
+                      <div className="field-description">{t('clients.presharedKeyDescription')}</div>
+                    </div>
+                  )}
+
                   <div className="settings-warning">
                     {t('clients.settingsWarning')}
                   </div>

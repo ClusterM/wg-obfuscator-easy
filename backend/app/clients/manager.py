@@ -17,10 +17,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """Client management operations"""
 
+import base64
 import subprocess
 import ipaddress
 import logging
-from typing import Dict, Tuple, List
+from typing import Dict, Tuple, List, Optional
 
 from ..config.constants import DEFAULT_CLIENT_OBFUSCATOR_PORT
 from ..exceptions import ClientAlreadyExistsError, ClientNotFoundError, ServiceError
@@ -80,6 +81,41 @@ class ClientManager:
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to generate key pair: {e}")
             raise ServiceError("Failed to generate server keys")
+
+    def generate_preshared_key(self) -> str:
+        """
+        Generate a WireGuard preshared key
+
+        Returns:
+            Preshared key string
+
+        Raises:
+            ServiceError: If key generation fails
+        """
+        try:
+            response = subprocess.run(
+                ["wg", "genpsk"],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            key = response.stdout.splitlines()[0]
+            logger.debug("Generated new preshared key")
+            return key
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to generate preshared key: {e}")
+            raise ServiceError("Failed to generate preshared key")
+
+    @staticmethod
+    def is_valid_wireguard_key(key: Optional[str]) -> bool:
+        """Return True if key is a valid WireGuard key (32 raw bytes in Base64)"""
+        if not isinstance(key, str):
+            return False
+        try:
+            raw = base64.b64decode(key, validate=True)
+            return len(raw) == 32
+        except (ValueError, TypeError):
+            return False
     
     def find_free_ip(self) -> int:
         """
@@ -126,6 +162,7 @@ class ClientManager:
             "ip": ip,
             "private_key": str(private),
             "public_key": str(public),
+            "preshared_key": None,
             "allowed_ips": ["0.0.0.0/0"],
             "obfuscator_port": DEFAULT_CLIENT_OBFUSCATOR_PORT,
             "masking_type_override": None,

@@ -87,6 +87,7 @@ def init_database() -> None:
                 ip INTEGER NOT NULL,
                 private_key TEXT NOT NULL,
                 public_key TEXT NOT NULL,
+                preshared_key TEXT,
                 allowed_ips TEXT NOT NULL,  -- JSON array
                 obfuscator_port INTEGER,
                 masking_type_override TEXT,
@@ -117,6 +118,12 @@ def init_database() -> None:
             CREATE INDEX IF NOT EXISTS idx_clients_enabled 
             ON clients(enabled)
         """)
+
+        cursor.execute("PRAGMA table_info(clients)")
+        client_columns = {row["name"] for row in cursor.fetchall()}
+        if "preshared_key" not in client_columns:
+            cursor.execute("ALTER TABLE clients ADD COLUMN preshared_key TEXT")
+            logger.info("Added preshared_key column to clients table")
         
         conn.commit()
         logger.info("Database schema initialized successfully")
@@ -219,6 +226,7 @@ def get_client(username: str) -> Optional[Dict[str, Any]]:
         client['ip_full'] = f"{get_config_value("subnet")}.{client['ip']}"
         client['allowed_ips'] = json.loads(client['allowed_ips'])
         client['enabled'] = bool(client['enabled'])
+        client['preshared_key'] = client.get('preshared_key') or None
         # latest_handshake is already an integer from DB
         if 'latest_handshake' not in client:
             client['latest_handshake'] = 0
@@ -241,6 +249,7 @@ def get_all_clients() -> Dict[str, Dict[str, Any]]:
             client['ip_full'] = f"{subnet}.{client['ip']}"
             client['allowed_ips'] = json.loads(client['allowed_ips'])
             client['enabled'] = bool(client['enabled'])
+            client['preshared_key'] = client.get('preshared_key') or None
             # latest_handshake is already an integer from DB
             if 'latest_handshake' not in client:
                 client['latest_handshake'] = 0
@@ -252,6 +261,7 @@ def get_all_clients() -> Dict[str, Dict[str, Any]]:
 def save_client(username: str, client_data: Dict[str, Any]) -> None:
     """Save or update client"""
     allowed_ips_json = json.dumps(client_data.get("allowed_ips", ["0.0.0.0/0"]))
+    preshared_key = client_data.get("preshared_key") or None
     now = datetime.now().isoformat()
     
     with get_db() as conn:
@@ -275,7 +285,7 @@ def save_client(username: str, client_data: Dict[str, Any]) -> None:
                     cursor.execute("""
                         UPDATE clients SET
                             ip = ?, private_key = ?, public_key = ?,
-                            allowed_ips = ?, obfuscator_port = ?,
+                            preshared_key = ?, allowed_ips = ?, obfuscator_port = ?,
                             masking_type_override = ?, verbosity_level = ?,
                             enabled = ?, latest_handshake = ?, updated_at = ?
                         WHERE username = ?
@@ -283,6 +293,7 @@ def save_client(username: str, client_data: Dict[str, Any]) -> None:
                         client_data.get("ip"),
                         client_data.get("private_key"),
                         client_data.get("public_key"),
+                        preshared_key,
                         allowed_ips_json,
                         client_data.get("obfuscator_port"),
                         client_data.get("masking_type_override"),
@@ -297,7 +308,7 @@ def save_client(username: str, client_data: Dict[str, Any]) -> None:
                     cursor.execute("""
                         UPDATE clients SET
                             ip = ?, private_key = ?, public_key = ?,
-                            allowed_ips = ?, obfuscator_port = ?,
+                            preshared_key = ?, allowed_ips = ?, obfuscator_port = ?,
                             masking_type_override = ?, verbosity_level = ?,
                             enabled = ?, updated_at = ?
                         WHERE username = ?
@@ -305,6 +316,7 @@ def save_client(username: str, client_data: Dict[str, Any]) -> None:
                         client_data.get("ip"),
                         client_data.get("private_key"),
                         client_data.get("public_key"),
+                        preshared_key,
                         allowed_ips_json,
                         client_data.get("obfuscator_port"),
                         client_data.get("masking_type_override"),
@@ -323,7 +335,7 @@ def save_client(username: str, client_data: Dict[str, Any]) -> None:
                 cursor.execute("""
                     UPDATE clients SET
                         ip = ?, private_key = ?, public_key = ?,
-                        allowed_ips = ?, obfuscator_port = ?,
+                        preshared_key = ?, allowed_ips = ?, obfuscator_port = ?,
                         masking_type_override = ?, verbosity_level = ?,
                         enabled = ?, latest_handshake = ?, updated_at = ?
                     WHERE username = ?
@@ -331,6 +343,7 @@ def save_client(username: str, client_data: Dict[str, Any]) -> None:
                     client_data.get("ip"),
                     client_data.get("private_key"),
                     client_data.get("public_key"),
+                    preshared_key,
                     allowed_ips_json,
                     client_data.get("obfuscator_port"),
                     client_data.get("masking_type_override"),
@@ -345,15 +358,16 @@ def save_client(username: str, client_data: Dict[str, Any]) -> None:
             latest_handshake = client_data.get("latest_handshake", 0)
             cursor.execute("""
                 INSERT INTO clients (
-                    username, ip, private_key, public_key, allowed_ips,
+                    username, ip, private_key, public_key, preshared_key, allowed_ips,
                     obfuscator_port, masking_type_override, verbosity_level,
                     enabled, latest_handshake, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 username,
                 client_data.get("ip"),
                 client_data.get("private_key"),
                 client_data.get("public_key"),
+                preshared_key,
                 allowed_ips_json,
                 client_data.get("obfuscator_port"),
                 client_data.get("masking_type_override"),
