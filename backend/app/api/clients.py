@@ -20,7 +20,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from flask import Blueprint, request, jsonify, current_app
 import logging
 
-from ..config.constants import MASKING_TYPES, VERBOSITY_LEVELS
+from ..config.constants import (
+    MASKING_TYPES, VERBOSITY_LEVELS,
+    CLIENT_NAME_MAX_LENGTH, CLIENT_NAME_FORBIDDEN_CHARS
+)
 from ..exceptions import ClientNotFoundError, ClientAlreadyExistsError, ConfigError, ConfigValidationError
 
 logger = logging.getLogger(__name__)
@@ -49,6 +52,36 @@ def require_auth(f):
         
         return f(*args, **kwargs)
     return decorated_function
+
+
+def safe_filename(name):
+    """Strip characters that would break the Content-Disposition header"""
+    return "".join(c for c in name if c.isprintable() and c not in '"\\/')
+
+
+def validate_username(username):
+    """
+    Validate a client name
+    
+    Returns:
+        Error message string, or None if the name is acceptable
+    """
+    if not isinstance(username, str):
+        return "username must be a string"
+    
+    stripped = username.strip()
+    if not stripped:
+        return "username must not be empty"
+    if stripped != username:
+        return "username must not start or end with whitespace"
+    if len(username) > CLIENT_NAME_MAX_LENGTH:
+        return f"username must be at most {CLIENT_NAME_MAX_LENGTH} characters"
+    if any(ord(c) < 0x20 or ord(c) == 0x7F for c in username):
+        return "username must not contain control characters"
+    if any(c in CLIENT_NAME_FORBIDDEN_CHARS for c in username):
+        return f"username must not contain any of: {CLIENT_NAME_FORBIDDEN_CHARS}"
+    
+    return None
 
 
 def apply_config_changes(app):
@@ -165,7 +198,8 @@ def get_client_config_wireguard_endpoint(username):
         client_config = client_manager.get_client_wg_config(
             username, external_ip, external_port, direct=direct
         )
-        filename = f"{username}-wireguard-direct.conf" if direct else f"{username}-wireguard.conf"
+        safe_name = safe_filename(username)
+        filename = f"{safe_name}-wireguard-direct.conf" if direct else f"{safe_name}-wireguard.conf"
         response = current_app.response_class(
             response=client_config,
             status=200,
@@ -204,7 +238,7 @@ def get_client_config_obfuscator_endpoint(username):
             status=200,
             mimetype='text/plain',
             headers={
-                'Content-Disposition': f'attachment; filename="{username}-obfuscator.conf"',
+                'Content-Disposition': f'attachment; filename="{safe_filename(username)}-obfuscator.conf"',
                 'Access-Control-Expose-Headers': 'Content-Disposition'
             }
         )
@@ -288,6 +322,10 @@ def create_client():
             return jsonify({"error": "username is required"}), 400
         
         username = data["username"]
+        name_error = validate_username(username)
+        if name_error:
+            return jsonify({"error": name_error}), 400
+        
         client_manager = current_app.client_manager
         
         new_client = client_manager.add_client(username, data.get("obfuscation", True))

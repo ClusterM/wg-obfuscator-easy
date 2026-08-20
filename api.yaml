@@ -352,7 +352,11 @@ paths:
               properties:
                 username:
                   type: string
-                  description: Client username
+                  minLength: 1
+                  maxLength: 64
+                  description: >-
+                    Client username. Must not contain control characters, leading or
+                    trailing whitespace, or any of the characters []#"\/
                 obfuscation:
                   type: boolean
                   default: true

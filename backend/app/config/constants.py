@@ -37,6 +37,11 @@ HANDSHAKE_TIMEOUT = 180  # seconds
 DEFAULT_ADMIN_USERNAME = "admin"
 DEFAULT_ADMIN_PASSWORD = "admin"
 
+# Client name constraints. Names end up in generated config files, HTTP headers
+# and metric labels, so control characters and config syntax are not allowed.
+CLIENT_NAME_MAX_LENGTH = 64
+CLIENT_NAME_FORBIDDEN_CHARS = '[]#"\\/'
+
 # Enable/disable authentication for debugging
 AUTH_ENABLED = os.getenv("AUTH_ENABLED", "true").lower() == "true"
 

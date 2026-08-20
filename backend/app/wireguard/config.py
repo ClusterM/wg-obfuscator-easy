@@ -75,7 +75,9 @@ class WireGuardConfigGenerator:
                 continue
             lines.append("")
             lines.append("[Peer]")
-            lines.append(f"# {client_name}")
+            # Names stored by older versions may contain line breaks, which would
+            # let the comment escape into a forged config section
+            lines.append("# " + " ".join(str(client_name).split()))
             lines.append(f"PublicKey = {client['public_key']}")
             if client.get('preshared_key'):
                 lines.append(f"PresharedKey = {client['preshared_key']}")
