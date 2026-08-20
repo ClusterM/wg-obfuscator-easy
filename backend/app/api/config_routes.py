@@ -217,6 +217,11 @@ def update_config():
             except UnicodeEncodeError:
                 return jsonify({"error": "obfuscation_key must contain only ASCII characters"}), 400
             
+            # The key is written verbatim into the obfuscator config file, so a
+            # line break would let it inject arbitrary directives
+            if any(ord(c) < 0x20 or ord(c) == 0x7F for c in obfuscation_key):
+                return jsonify({"error": "obfuscation_key must not contain control characters"}), 400
+            
             config_manager.set("obfuscation_key", obfuscation_key, save=False)
             updated = True
 
