@@ -117,6 +117,7 @@ declare -A MSG_EN=(
     [IP_DETECT_FAILED]="Failed to detect external IP address"
     [EXTERNAL_IP]="External IP: %s"
     [OLD_CONFIG_FOUND]="Old configuration found. Do you want to keep old settings? (Y/n): "
+    [REMOVING_OLD_DATABASE]="Removing existing database..."
     [CONFIG_DIR]="Config directory: %s"
     [PULLING_IMAGE]="Pulling Docker image: %s..."
     [PULL_FAILED]="Failed to pull Docker image. Make sure the image exists and you have internet connection."
@@ -281,6 +282,7 @@ declare -A MSG_RU=(
     [IP_DETECT_FAILED]="Не удалось определить внешний IP-адрес"
     [EXTERNAL_IP]="Внешний IP: %s"
     [OLD_CONFIG_FOUND]="Найдена старая конфигурация. Хотите сохранить старые настройки? (Y/n): "
+    [REMOVING_OLD_DATABASE]="Удаление существующей базы данных..."
     [CONFIG_DIR]="Директория конфигурации: %s"
     [PULLING_IMAGE]="Загрузка Docker-образа: %s..."
     [PULL_FAILED]="Не удалось загрузить Docker-образ. Убедитесь, что образ существует и у вас есть подключение к интернету."
@@ -1488,6 +1490,13 @@ main() {
         docker rm "$CONTAINER_NAME" 1>/dev/null || true
     fi
 
+    if [ "$KEEP_OLD_HOST_CONFIG" = false ]; then
+        if [ -f "$CONFIG_DIR/wg-easy.db" ] || [ -f "$CONFIG_DIR/wg-easy.db-wal" ] || [ -f "$CONFIG_DIR/wg-easy.db-shm" ]; then
+            print_info "$(msg REMOVING_OLD_DATABASE)"
+            rm -f "$CONFIG_DIR/wg-easy.db" "$CONFIG_DIR/wg-easy.db-wal" "$CONFIG_DIR/wg-easy.db-shm"
+        fi
+    fi
+
     # Pull Docker image
     print_info "$(msg PULLING_IMAGE "$IMAGE_NAME")"
     docker pull "$IMAGE_NAME" 1>/dev/null || {
@@ -1495,7 +1504,7 @@ main() {
         exit 1
     }
 
-    if [ "$NEW_PASSWORD" = true ]; then
+    if [ "$NEW_PASSWORD" = true ] && [ "$KEEP_OLD_HOST_CONFIG" = true ]; then
         if reset_admin_credentials "$ADMIN_PASSWORD"; then
             print_info "$(msg ADMIN_RESET_SUCCESS)"
             print_info "$(msg TOKENS_DELETED)"
