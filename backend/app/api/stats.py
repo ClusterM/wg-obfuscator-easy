@@ -301,8 +301,8 @@ def _get_system_metrics_lines(config_manager, wg_manager, obfuscator_manager, pe
     return [
         f"service_running{{service=\"wireguard\"}} {1 if wg_status.get('running') else 0}",
         f"service_running{{service=\"obfuscator\"}} {1 if obfuscator_status.get('running') else 0}",
-        f"wg_clients_connected {len(config_manager.clients)}",
-        f"wg_clients_configured {connected_clients}",
+        f"wg_clients_connected {connected_clients}",
+        f"wg_clients_configured {len(config_manager.clients)}",
     ]
 
 
