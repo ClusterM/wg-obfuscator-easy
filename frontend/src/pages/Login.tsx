@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { login } from '../services/auth';
+import { isAuthEnabled, login } from '../services/auth';
 import LanguageSelector from '../components/LanguageSelector';
 import ThemeToggle from '../components/ThemeToggle';
 import './Login.css';
@@ -13,6 +13,12 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isAuthEnabled()) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

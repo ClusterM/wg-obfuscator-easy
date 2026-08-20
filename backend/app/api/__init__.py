@@ -144,9 +144,11 @@ def create_app(config_manager, client_manager, wg_manager, obfuscator_manager,
                 html_content = re.sub(r'(href|src)="(/[^"]+)"', add_prefix, html_content)
             
             # Insert script before closing head tag to set web prefix
+            from ..config.constants import AUTH_ENABLED
             prefix_script = f'''
     <script>
         window.__WEB_PREFIX__ = {repr(web_prefix)};
+        window.__AUTH_ENABLED__ = {repr(AUTH_ENABLED)};
     </script>'''
             
             if '</head>' in html_content:

@@ -28,7 +28,7 @@ class ApiService {
       (response) => response,
       (error) => {
         // Handle 401 responses
-        if (error.response?.status === 401) {
+        if (error.response?.status === 401 && (window as any).__AUTH_ENABLED__ !== false) {
           this.clearToken();
           // Don't redirect if we're already on the login page (prevents page reload on login error)
           const loginPath = WEB_PREFIX + '/login';
@@ -64,6 +64,11 @@ class ApiService {
   }
 
   // Auth endpoints
+  async getAuthStatus() {
+    const response = await this.client.get('/auth/status');
+    return response.data;
+  }
+
   async login(username: string, password: string) {
     const response = await this.client.post('/auth/login', { username, password });
     if (response.data.access_token || response.data.token) {

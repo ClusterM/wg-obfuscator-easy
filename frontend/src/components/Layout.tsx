@@ -1,7 +1,7 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useEffect, useState } from 'react';
-import { logout } from '../services/auth';
+import { isAuthEnabled, logout } from '../services/auth';
 import ThemeToggle from './ThemeToggle';
 import api from '../services/api';
 import LanguageSelector from './LanguageSelector';
@@ -72,9 +72,11 @@ export default function Layout() {
             )}
             <ThemeToggle />
             <LanguageSelector />
-            <button onClick={handleLogout} className="btn-logout">
-              {t('auth.logout')}
-            </button>
+            {isAuthEnabled() && (
+              <button onClick={handleLogout} className="btn-logout">
+                {t('auth.logout')}
+              </button>
+            )}
           </div>
         </div>
         <div className="nav-tabs">

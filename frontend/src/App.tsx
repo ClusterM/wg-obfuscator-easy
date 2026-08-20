@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { isAuthenticated } from './services/auth';
+import { isAuthenticated, loadAuthStatus } from './services/auth';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -14,6 +15,16 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
+  const [authReady, setAuthReady] = useState(false);
+
+  useEffect(() => {
+    loadAuthStatus().finally(() => setAuthReady(true));
+  }, []);
+
+  if (!authReady) {
+    return null;
+  }
+
   return (
     <Router basename={WEB_PREFIX}>
       <Routes>
