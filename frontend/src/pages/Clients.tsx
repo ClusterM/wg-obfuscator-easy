@@ -100,14 +100,11 @@ export default function Clients() {
       setClients(clientsWithUsername);
       
       // Update selected client if modal is open (preserve existing fields like private_key, configs, etc.)
-      if (selectedClient && clientsWithUsername[selectedClient.username]) {
-        const updatedClient = {
-          ...selectedClient, // Keep existing fields (private_key, wireguardConfig, etc.)
-          ...clientsWithUsername[selectedClient.username], // Update with fresh data (is_connected, latest_handshake, traffic counters, etc.)
-        };
-        // Always update to trigger re-render with fresh data
-        setSelectedClient(updatedClient);
-      }
+      setSelectedClient(prev => {
+        if (!prev) return prev;
+        const fresh = clientsWithUsername[prev.username];
+        return fresh ? { ...prev, ...fresh } : prev;
+      });
     } catch (err: any) {
       setError(err.message || t('errors.serverError'));
       setSuccess('');
