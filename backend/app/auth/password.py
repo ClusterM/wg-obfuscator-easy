@@ -18,27 +18,39 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Password hashing and verification utilities"""
 
 import hashlib
+import hmac
 import logging
+import os
 
 logger = logging.getLogger(__name__)
+
+PBKDF2_ALGORITHM = "pbkdf2_sha256"
+PBKDF2_ITERATIONS = 600000
+SALT_BYTES = 16
+LEGACY_SHA256_LENGTH = 64
 
 
 def hash_password(password: str) -> str:
     """
-    Hash password using SHA-256
+    Hash password using PBKDF2-HMAC-SHA256 with a random salt
     
     Args:
         password: Plain text password
         
     Returns:
-        Hexadecimal hash of the password
+        Encoded hash in the form algorithm$iterations$salt$hash
     """
-    return hashlib.sha256(password.encode()).hexdigest()
+    salt = os.urandom(SALT_BYTES)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, PBKDF2_ITERATIONS)
+    return f"{PBKDF2_ALGORITHM}${PBKDF2_ITERATIONS}${salt.hex()}${digest.hex()}"
 
 
 def verify_password(password: str, password_hash: str) -> bool:
     """
-    Verify password against hash
+    Verify password against a stored hash
+    
+    Supports both the current PBKDF2 format and the legacy unsalted SHA-256
+    hashes written by older versions.
     
     Args:
         password: Plain text password to verify
@@ -47,5 +59,41 @@ def verify_password(password: str, password_hash: str) -> bool:
     Returns:
         True if password matches hash, False otherwise
     """
-    return hash_password(password) == password_hash
+    if not password_hash:
+        return False
+    
+    if is_legacy_hash(password_hash):
+        legacy = hashlib.sha256(password.encode()).hexdigest()
+        return hmac.compare_digest(legacy, password_hash)
+    
+    try:
+        algorithm, iterations, salt_hex, digest_hex = password_hash.split("$")
+        if algorithm != PBKDF2_ALGORITHM:
+            logger.warning(f"Unsupported password hash algorithm: {algorithm}")
+            return False
+        expected = hashlib.pbkdf2_hmac(
+            "sha256", password.encode(), bytes.fromhex(salt_hex), int(iterations)
+        )
+    except (ValueError, TypeError) as e:
+        logger.warning(f"Malformed stored password hash: {e}")
+        return False
+    
+    return hmac.compare_digest(expected.hex(), digest_hex)
+
+
+def is_legacy_hash(password_hash: str) -> bool:
+    """
+    Check whether a stored hash uses the legacy unsalted SHA-256 format
+    
+    Args:
+        password_hash: Stored password hash
+        
+    Returns:
+        True if the hash should be upgraded after a successful verification
+    """
+    return (
+        len(password_hash) == LEGACY_SHA256_LENGTH
+        and "$" not in password_hash
+        and all(c in "0123456789abcdefABCDEF" for c in password_hash)
+    )
 

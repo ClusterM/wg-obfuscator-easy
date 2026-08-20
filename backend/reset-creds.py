@@ -1,7 +1,8 @@
 import sqlite3
 import sys
-import hashlib
 from datetime import datetime
+
+from app.auth.password import hash_password
 
 try:
     password = sys.argv[1]
@@ -9,7 +10,7 @@ try:
         print("Error: Password is empty", file=sys.stderr)
         sys.exit(1)
 
-    password_hash = hashlib.sha256(password.encode()).hexdigest()
+    password_hash = hash_password(password)
     now = datetime.now().isoformat()
 
     db_path = "/config/wg-easy.db"

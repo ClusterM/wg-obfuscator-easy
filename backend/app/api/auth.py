@@ -21,7 +21,7 @@ from flask import Blueprint, request, jsonify, current_app
 import logging
 
 from ..auth.tokens import TokenManager
-from ..auth.password import verify_password
+from ..auth.password import verify_password, is_legacy_hash
 from ..config.constants import AUTH_ENABLED, DEFAULT_ADMIN_USERNAME
 
 logger = logging.getLogger(__name__)
@@ -87,6 +87,11 @@ def login():
         stored_hash = config.get("admin_password_hash")
         if not stored_hash or not verify_password(password, stored_hash):
             return jsonify({"error": "Invalid credentials"}), 401
+        
+        if is_legacy_hash(stored_hash):
+            from ..auth.password import hash_password
+            config_manager.set("admin_password_hash", hash_password(password), save=True)
+            logger.info("Upgraded stored admin password hash to PBKDF2")
         
         # Generate token with OAuth 2.0 format
         access_token, created_at = token_manager.create_token()
