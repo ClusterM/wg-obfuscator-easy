@@ -677,7 +677,11 @@ paths:
                   nullable: true
                   minimum: 1
                   maximum: 65535
-                  description: UDP port the container listens on. Null means use EXTERNAL_PORT.
+                  description: >-
+                    UDP port the container listens on. Null means use EXTERNAL_PORT.
+                    Only affects the port inside the container: Docker port publishing is
+                    fixed at container creation, so the port must already be forwarded to
+                    the container or clients will not be able to connect.
       responses:
         '200':
           description: Configuration updated successfully
@@ -1127,7 +1131,11 @@ components:
           nullable: true
           minimum: 1
           maximum: 65535
-          description: UDP port the container listens on. Null means use EXTERNAL_PORT.
+          description: >-
+            UDP port the container listens on. Null means use EXTERNAL_PORT.
+            Only affects the port inside the container: Docker port publishing is
+            fixed at container creation, so the port must already be forwarded to
+            the container or clients will not be able to connect.
         server_public_key:
           type: string
           description: Server public key

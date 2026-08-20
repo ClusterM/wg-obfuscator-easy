@@ -78,7 +78,9 @@ After starting the container, access the web interface at:
 - `EXTERNAL_IP` - Server address given to clients (IPv4 or hostname/DDNS). Used as-is in Endpoint and obfuscator `target`. When generating an obfuscated WireGuard config, hostnames are resolved to A records so those `/32` addresses can be excluded from AllowedIPs (unless the client keeps the server in AllowedIPs). A downloaded config will not update if the hostname later points to a new IP.
 - `EXTERNAL_PORT` - Port written into client configs (WG Endpoint and obfuscator `target`)
 - `LISTEN_PORT` - Initial UDP port the container listens on (obfuscator, or WireGuard when obfuscation is off). Used only if `listen_port` is not already stored in the database. If unset or if `listen_port` is `null`, the container listens on `EXTERNAL_PORT`. Map Docker UDP as `-p <listen>:<listen>/udp`; DNAT/port forwards on the router should target this port. Change later via `GET`/`PATCH /api/config` (`listen_port`; `null` means follow `EXTERNAL_PORT`).
+  > **Note:** changing `listen_port` through the API only changes the port inside the container. Docker port publishing (`-p`) is fixed when the container is created, so the new port stays unreachable until you recreate the container with a matching `-p <listen>:<listen>/udp` (`install.sh` publishes `EXTERNAL_PORT` only). Use it when a reverse proxy or manual port mapping already forwards traffic to that port.
 - `TZ` - Container timezone (e.g., `Europe/Moscow`). Optional; can also be set in the web UI
+- `ADMIN_USERNAME` - Admin username, applied on first start only (default: `admin`)
 - `ADMIN_PASSWORD` - Admin password (default: `admin`)
 - `AUTH_ENABLED` - Enable/disable authentication (default: `true`)
 - `LOG_LEVEL` - Logging level: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` (default: `INFO`)
