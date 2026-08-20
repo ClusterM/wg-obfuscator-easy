@@ -939,8 +939,9 @@ export default function Clients() {
                   checked={selectedClient.enabled !== false}
                   onChange={() => {
                     handleToggleEnabled(selectedClient.username, selectedClient.enabled !== false);
-                    // Update local state immediately for better UX
-                    setSelectedClient({...selectedClient, enabled: !selectedClient.enabled});
+                    // Update local state immediately for better UX. An absent
+                    // enabled flag means the client is enabled.
+                    setSelectedClient(prev => prev ? {...prev, enabled: prev.enabled === false} : prev);
                   }}
                 />
                 <span className="slider"></span>
