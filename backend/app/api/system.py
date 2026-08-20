@@ -53,15 +53,71 @@ def require_auth(f):
     return decorated_function
 
 
-def get_current_timezone():
-    """Get current system timezone"""
+def _is_valid_timezone(timezone_name):
+    """Return True if timezone_name is a known IANA timezone"""
+    if not timezone_name:
+        return False
     try:
-        with open('/etc/timezone', 'r') as f:
+        pytz.timezone(timezone_name)
+        return True
+    except pytz.exceptions.UnknownTimeZoneError:
+        return False
+
+
+def _timezone_from_localtime():
+    """Resolve timezone name from /etc/localtime if it points into zoneinfo"""
+    localtime_path = "/etc/localtime"
+    zoneinfo_dir = "/usr/share/zoneinfo"
+    if not os.path.exists(localtime_path):
+        return None
+    try:
+        target = os.path.realpath(localtime_path)
+        prefix = os.path.realpath(zoneinfo_dir) + os.sep
+        if target.startswith(prefix):
+            timezone_name = target[len(prefix):]
+            if _is_valid_timezone(timezone_name):
+                return timezone_name
+    except OSError as e:
+        logger.debug(f"Failed to resolve {localtime_path}: {e}")
+    return None
+
+
+def _timezone_from_timezone_file():
+    """Read Debian-style /etc/timezone when it is a regular file"""
+    timezone_file = "/etc/timezone"
+    if not os.path.isfile(timezone_file):
+        if os.path.exists(timezone_file):
+            logger.debug(f"{timezone_file} exists but is not a file, skipping")
+        return None
+    try:
+        with open(timezone_file, "r", encoding="utf-8") as f:
             timezone_name = f.read().strip()
-        return timezone_name
-    except (FileNotFoundError, IOError) as e:
-        logger.error(f"Failed to read /etc/timezone: {e}")
-        return "UTC"
+        if _is_valid_timezone(timezone_name):
+            return timezone_name
+    except OSError as e:
+        logger.debug(f"Failed to read {timezone_file}: {e}")
+    return None
+
+
+def get_current_timezone():
+    """
+    Detect the effective timezone without assuming /etc/timezone is a file.
+
+    Order: TZ environment variable, /etc/localtime, /etc/timezone, UTC.
+    """
+    tz_env = os.environ.get("TZ", "").strip()
+    if _is_valid_timezone(tz_env):
+        return tz_env
+
+    from_localtime = _timezone_from_localtime()
+    if from_localtime:
+        return from_localtime
+
+    from_file = _timezone_from_timezone_file()
+    if from_file:
+        return from_file
+
+    return "UTC"
 
 
 def get_timezone_offset(timezone_name):
@@ -137,19 +193,7 @@ def set_system_timezone(timezone_name):
         if not os.path.exists(zoneinfo_path):
             return False, f"Timezone file not found: {zoneinfo_path}"
 
-        # Update /etc/timezone file
-        with open('/etc/timezone', 'w') as f:
-            f.write(f"{timezone_name}\n")
-
-        # Update /etc/localtime symlink
-        subprocess.run(['ln', '-sf', zoneinfo_path, '/etc/localtime'],
-                      check=True, capture_output=True)
-
-        # Save timezone to database
-        from ..database import set_config_value
-        set_config_value("system_timezone", timezone_name)
-
-        # Update process timezone without restart
+        # Process timezone is what actually affects log timestamps
         os.environ['TZ'] = timezone_name
         try:
             time.tzset()
@@ -157,12 +201,34 @@ def set_system_timezone(timezone_name):
             # tzset not available on all platforms
             pass
 
+        # Save timezone to database
+        from ..database import set_config_value
+        set_config_value("system_timezone", timezone_name)
+
+        try:
+            subprocess.run(['ln', '-sf', zoneinfo_path, '/etc/localtime'],
+                          check=True, capture_output=True)
+        except subprocess.CalledProcessError as e:
+            logger.warning(
+                "Failed to update /etc/localtime symlink: %s",
+                e.stderr.decode().strip() if e.stderr else str(e)
+            )
+
+        timezone_file = "/etc/timezone"
+        if os.path.isdir(timezone_file):
+            logger.warning(
+                "%s is a directory (likely a host bind mount); skip writing",
+                timezone_file
+            )
+        else:
+            try:
+                with open(timezone_file, "w", encoding="utf-8") as f:
+                    f.write(f"{timezone_name}\n")
+            except OSError as e:
+                logger.warning("Failed to write %s: %s", timezone_file, e)
+
         return True, None
 
-    except subprocess.CalledProcessError as e:
-        error_msg = f"Failed to update timezone symlink: {e.stderr.decode().strip()}"
-        logger.error(error_msg)
-        return False, error_msg
     except Exception as e:
         error_msg = f"Failed to set timezone: {str(e)}"
         logger.error(error_msg)
@@ -174,7 +240,9 @@ def set_system_timezone(timezone_name):
 def get_system_timezone():
     """Get current system timezone information"""
     try:
-        current_tz = get_current_timezone()
+        from ..database import get_config_value
+        saved_tz = get_config_value("system_timezone")
+        current_tz = saved_tz if _is_valid_timezone(saved_tz) else get_current_timezone()
         offset = get_timezone_offset(current_tz)
         available_timezones = get_available_timezones()
 

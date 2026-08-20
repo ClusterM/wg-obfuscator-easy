@@ -53,7 +53,7 @@ If you prefer manual setup without the automated script:
 docker run -d \
   --name wg-obf-easy \
   -v ~/.wg-obf-easy:/config \
-  -v /etc/timezone:/etc/timezone:ro \
+  -e TZ=Europe/Moscow \
   -e WEB_PREFIX=/your-prefix/ \
   -e EXTERNAL_IP=your.server.ip \
   -e EXTERNAL_PORT=57159 \
@@ -77,6 +77,7 @@ After starting the container, access the web interface at:
 - `WEB_PREFIX` - Web interface path prefix (e.g., `/vpn/`)
 - `EXTERNAL_IP` - Your server's external IP address
 - `EXTERNAL_PORT` - WireGuard port (UDP)
+- `TZ` - Container timezone (e.g., `Europe/Moscow`). Optional; can also be set in the web UI
 - `ADMIN_PASSWORD` - Admin password (default: `admin`)
 - `AUTH_ENABLED` - Enable/disable authentication (default: `true`)
 - `LOG_LEVEL` - Logging level: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` (default: `INFO`)
@@ -269,7 +270,7 @@ This application is designed to run in Docker containers. For development, you c
    docker run -d \
      --name wg-obf-easy-dev \
      -v ~/.wg-obf-easy:/config \
-     -v /etc/timezone:/etc/timezone:ro \
+     -e TZ=Europe/Moscow \
      -e WEB_PREFIX=/ \
      -e EXTERNAL_IP=$(curl -s ifconfig.me) \
      -e EXTERNAL_PORT=57159 \
