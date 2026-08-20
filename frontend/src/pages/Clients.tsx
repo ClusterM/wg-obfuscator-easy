@@ -12,6 +12,7 @@ interface Client {
   private_key?: string;
   preshared_key?: string | null;
   allowed_ips?: string[];
+  keep_server_in_allowed_ips?: boolean;
   obfuscator_port?: number;
   masking_type_override?: string;
   verbosity_level?: string;
@@ -56,6 +57,7 @@ export default function Clients() {
     obfuscator_port?: number;
     verbosity_level?: string | null;
     allowed_ips?: string[];
+    keep_server_in_allowed_ips?: boolean;
     preshared_key_enabled?: boolean;
     preshared_key?: string;
   }>({});
@@ -369,6 +371,7 @@ export default function Clients() {
         obfuscator_port: fullClient.obfuscator_port,
         verbosity_level: fullClient.verbosity_level || 'INFO',
         allowed_ips: fullClient.allowed_ips || ['0.0.0.0/0'],
+        keep_server_in_allowed_ips: Boolean(fullClient.keep_server_in_allowed_ips),
         preshared_key_enabled: Boolean(fullClient.preshared_key),
         preshared_key: fullClient.preshared_key || '',
       });
@@ -648,6 +651,7 @@ export default function Clients() {
       if ('allowed_ips' in editingClientSettings) {
         updateData.allowed_ips = (editingClientSettings.allowed_ips || []).filter(ip => ip.trim() !== '');
       }
+      updateData.keep_server_in_allowed_ips = editingClientSettings.keep_server_in_allowed_ips === true;
       if ('verbosity_level' in editingClientSettings) {
         // Always send verbosity_level, default to INFO if not set
         updateData.verbosity_level = editingClientSettings.verbosity_level || 'INFO';
@@ -663,6 +667,7 @@ export default function Clients() {
         obfuscator_port: updatedClient.obfuscator_port,
         verbosity_level: updatedClient.verbosity_level || 'INFO',
         allowed_ips: updatedClient.allowed_ips || ['0.0.0.0/0'],
+        keep_server_in_allowed_ips: Boolean(updatedClient.keep_server_in_allowed_ips),
         preshared_key_enabled: Boolean(updatedClient.preshared_key),
         preshared_key: updatedClient.preshared_key || '',
       });
@@ -1153,6 +1158,24 @@ export default function Clients() {
                   + {t('clients.addAllowedIp')}
                 </button>
                 <div className="field-description">{t('clients.allowedIPsDescription')}</div>
+              </div>
+
+              <div className="form-group">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={editingClientSettings.keep_server_in_allowed_ips === true}
+                    onChange={(e) => {
+                      setClientSettingsSuccess('');
+                      setEditingClientSettings({
+                        ...editingClientSettings,
+                        keep_server_in_allowed_ips: e.target.checked,
+                      });
+                    }}
+                  />
+                  {t('clients.keepServerInAllowedIps')}
+                </label>
+                <div className="field-description">{t('clients.keepServerInAllowedIpsDescription')}</div>
               </div>
 
               <div className="form-group">

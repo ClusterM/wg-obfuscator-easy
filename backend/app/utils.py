@@ -17,12 +17,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """Utility functions"""
 
+import ipaddress
 import os
+import socket
 import requests
 import secrets
 import string
 import logging
-from typing import Optional
+from typing import List, Optional
 
 from .config.constants import EXTERNAL_IP_FILE, DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_PASSWORD
 from .exceptions import ConfigError
@@ -76,6 +78,66 @@ def get_external_ip() -> str:
         logger.error(f"Failed to get external IP from external service: {e}")
     
     raise ConfigError("Failed to get external IP address")
+
+
+def resolve_external_ipv4(host: str) -> List[str]:
+    """
+    Resolve EXTERNAL_IP (IPv4 or hostname) to one or more IPv4 addresses.
+
+    Used only when excluding the server address from client AllowedIPs.
+    """
+    if not isinstance(host, str) or not host.strip():
+        raise ConfigError("EXTERNAL_IP is empty or invalid")
+
+    host = host.strip()
+    try:
+        parsed = ipaddress.ip_address(host)
+        if isinstance(parsed, ipaddress.IPv4Address):
+            return [str(parsed)]
+        raise ConfigError(f"EXTERNAL_IP must be an IPv4 address or hostname, got IPv6: {host}")
+    except ValueError:
+        pass
+
+    try:
+        infos = socket.getaddrinfo(host, None, socket.AF_INET, socket.SOCK_STREAM)
+    except socket.gaierror as e:
+        raise ConfigError(f"Failed to resolve EXTERNAL_IP '{host}' to an IPv4 address: {e}")
+
+    addresses: List[str] = []
+    seen = set()
+    for info in infos:
+        addr = info[4][0]
+        if addr not in seen:
+            seen.add(addr)
+            addresses.append(addr)
+
+    if not addresses:
+        raise ConfigError(f"Failed to resolve EXTERNAL_IP '{host}' to an IPv4 address")
+
+    logger.debug(f"Resolved EXTERNAL_IP '{host}' to {addresses}")
+    return addresses
+
+
+def parse_listen_port_env() -> Optional[int]:
+    """Parse LISTEN_PORT env var. Empty/unset returns None."""
+    value = os.getenv("LISTEN_PORT")
+    if value is None or not str(value).strip():
+        return None
+    try:
+        port = int(value)
+        if port < 1 or port > 65535:
+            raise ValueError("Port out of range")
+        return port
+    except ValueError:
+        raise ConfigError(f"Invalid LISTEN_PORT value: {value}")
+
+
+def get_effective_listen_port(config: dict, external_port: int) -> int:
+    """Return stored listen_port, or EXTERNAL_PORT when listen_port is null."""
+    listen_port = config.get("listen_port")
+    if listen_port is None:
+        return external_port
+    return int(listen_port)
 
 
 def get_external_port() -> int:
@@ -160,6 +222,12 @@ def initialize_config(config_manager) -> None:
     if "obfuscation_key" not in config_manager.main:
         config_manager.main["obfuscation_key"] = generate_obfuscation_key()
         logger.info("Generated obfuscation key")
+
+    if "listen_port" not in config_manager.main:
+        env_listen_port = parse_listen_port_env()
+        if env_listen_port is not None:
+            config_manager.main["listen_port"] = env_listen_port
+            logger.info(f"Initialized listen_port from LISTEN_PORT: {env_listen_port}")
     
     config_manager.save_config()
 

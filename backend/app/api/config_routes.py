@@ -54,6 +54,32 @@ def require_auth(f):
     return decorated_function
 
 
+def _listen_port_value(config):
+    listen_port = config.get("listen_port")
+    if listen_port is None:
+        return None
+    return int(listen_port)
+
+
+def _config_response(config, external_ip, external_port):
+    subnet = config.get("subnet")
+    return {
+        "external_ip": external_ip,
+        "external_port": external_port,
+        "listen_port": _listen_port_value(config),
+        "server_public_key": config.get("server_public_key"),
+        "subnet": f"{subnet}.0/24" if subnet else None,
+        "server_ip": f"{config['subnet']}.{config['own_ip']}",
+        "enabled": config.get("enabled", True),
+        "obfuscation": config.get("obfuscation", False),
+        "allow_clean": config.get("allow_clean", False),
+        "obfuscation_key": config.get("obfuscation_key", ""),
+        "masking_type": config.get("masking_type", DEFAULT_MASKING_TYPE),
+        "masking_forced": config.get("masking_forced", False),
+        "verbosity_level": config.get("verbosity_level", DEFAULT_VERBOSITY_LEVEL)
+    }
+
+
 def apply_config_changes(app):
     """Apply configuration changes: generate config and restart WireGuard"""
     from ..services import ServiceManager
@@ -83,22 +109,7 @@ def get_config():
         external_port = current_app.external_port
         
         config = config_manager.main
-        subnet = config.get("subnet")
-        
-        return jsonify({
-            "external_ip": external_ip,
-            "external_port": external_port,
-            "server_public_key": config.get("server_public_key"),
-            "subnet": f"{subnet}.0/24" if subnet else None,
-            "server_ip": f"{config['subnet']}.{config['own_ip']}",
-            "enabled": config.get("enabled", True),
-            "obfuscation": config.get("obfuscation", False),
-            "allow_clean": config.get("allow_clean", False),
-            "obfuscation_key": config.get("obfuscation_key", ""),
-            "masking_type": config.get("masking_type", DEFAULT_MASKING_TYPE),
-            "masking_forced": config.get("masking_forced", False),
-            "verbosity_level": config.get("verbosity_level", DEFAULT_VERBOSITY_LEVEL)
-        })
+        return jsonify(_config_response(config, external_ip, external_port))
     except Exception as e:
         logger.error(f"Error getting config: {e}")
         return jsonify({"error": str(e)}), 500
@@ -208,6 +219,19 @@ def update_config():
             
             config_manager.set("obfuscation_key", obfuscation_key, save=False)
             updated = True
+
+        if "listen_port" in data:
+            listen_port = data["listen_port"]
+            if listen_port is None:
+                config_manager.set("listen_port", None, save=False)
+                updated = True
+            elif isinstance(listen_port, bool) or not isinstance(listen_port, int):
+                return jsonify({"error": "listen_port must be an integer between 1 and 65535 or null"}), 400
+            elif listen_port < 1 or listen_port > 65535:
+                return jsonify({"error": "listen_port must be an integer between 1 and 65535 or null"}), 400
+            else:
+                config_manager.set("listen_port", listen_port, save=False)
+                updated = True
         
         if updated:
             config_manager.save_config()
@@ -215,24 +239,7 @@ def update_config():
         
         # Return updated config (same format as GET)
         config = config_manager.main
-        subnet = config.get("subnet")
-        external_ip = current_app.external_ip
-        external_port = current_app.external_port
-        
-        return jsonify({
-            "external_ip": external_ip,
-            "external_port": external_port,
-            "server_public_key": config.get("server_public_key"),
-            "subnet": f"{subnet}.0/24" if subnet else None,
-            "server_ip": f"{config['subnet']}.{config['own_ip']}",
-            "enabled": config.get("enabled", True),
-            "obfuscation": config.get("obfuscation", False),
-            "allow_clean": config.get("allow_clean", False),
-            "obfuscation_key": config.get("obfuscation_key", ""),
-            "masking_type": config.get("masking_type", DEFAULT_MASKING_TYPE),
-            "masking_forced": config.get("masking_forced", False),
-            "verbosity_level": config.get("verbosity_level", DEFAULT_VERBOSITY_LEVEL)
-        })
+        return jsonify(_config_response(config, current_app.external_ip, current_app.external_port))
     except Exception as e:
         logger.error(f"Error updating config: {e}")
         return jsonify({"error": str(e)}), 500

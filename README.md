@@ -75,8 +75,9 @@ After starting the container, access the web interface at:
 ### Environment Variables
 
 - `WEB_PREFIX` - Web interface path prefix (e.g., `/vpn/`)
-- `EXTERNAL_IP` - Your server's external IP address
-- `EXTERNAL_PORT` - WireGuard port (UDP)
+- `EXTERNAL_IP` - Server address given to clients (IPv4 or hostname/DDNS). Used as-is in Endpoint and obfuscator `target`. When generating an obfuscated WireGuard config, hostnames are resolved to A records so those `/32` addresses can be excluded from AllowedIPs (unless the client keeps the server in AllowedIPs). A downloaded config will not update if the hostname later points to a new IP.
+- `EXTERNAL_PORT` - Port written into client configs (WG Endpoint and obfuscator `target`)
+- `LISTEN_PORT` - Initial UDP port the container listens on (obfuscator, or WireGuard when obfuscation is off). Used only if `listen_port` is not already stored in the database. If unset or if `listen_port` is `null`, the container listens on `EXTERNAL_PORT`. Map Docker UDP as `-p <listen>:<listen>/udp`; DNAT/port forwards on the router should target this port. Change later via `GET`/`PATCH /api/config` (`listen_port`; `null` means follow `EXTERNAL_PORT`).
 - `TZ` - Container timezone (e.g., `Europe/Moscow`). Optional; can also be set in the web UI
 - `ADMIN_PASSWORD` - Admin password (default: `admin`)
 - `AUTH_ENABLED` - Enable/disable authentication (default: `true`)

@@ -21,7 +21,7 @@ from flask import Blueprint, request, jsonify, current_app
 import logging
 
 from ..config.constants import MASKING_TYPES, VERBOSITY_LEVELS
-from ..exceptions import ClientNotFoundError, ClientAlreadyExistsError, ConfigValidationError
+from ..exceptions import ClientNotFoundError, ClientAlreadyExistsError, ConfigError, ConfigValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -178,6 +178,8 @@ def get_client_config_wireguard_endpoint(username):
         return response
     except ClientNotFoundError as e:
         return jsonify({"error": str(e)}), 404
+    except ConfigError as e:
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         logger.error(f"Error getting client WireGuard config: {e}")
         return jsonify({"error": str(e)}), 500
@@ -426,6 +428,13 @@ def update_client(username):
                     return jsonify({"error": "preshared_key must be a valid WireGuard key or null"}), 400
                 client["preshared_key"] = preshared_key
                 updated = True
+
+        if "keep_server_in_allowed_ips" in data:
+            keep_server = data["keep_server_in_allowed_ips"]
+            if not isinstance(keep_server, bool):
+                return jsonify({"error": "keep_server_in_allowed_ips must be a boolean"}), 400
+            client["keep_server_in_allowed_ips"] = keep_server
+            updated = True
         
         if updated:
             # Ensure latest_handshake is preserved

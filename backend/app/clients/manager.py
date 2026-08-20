@@ -164,6 +164,7 @@ class ClientManager:
             "public_key": str(public),
             "preshared_key": None,
             "allowed_ips": ["0.0.0.0/0"],
+            "keep_server_in_allowed_ips": False,
             "obfuscator_port": DEFAULT_CLIENT_OBFUSCATOR_PORT,
             "masking_type_override": None,
             "verbosity_level": "INFO",
@@ -270,7 +271,7 @@ class ClientManager:
         
         Args:
             username: Client username
-            external_ip: External IP address
+            external_ip: External IP address or hostname
             external_port: External port number
             direct: If True, generate a clean (non-obfuscated) config
             
@@ -279,6 +280,7 @@ class ClientManager:
             
         Raises:
             ClientNotFoundError: If client does not exist
+            ConfigError: If EXTERNAL_IP cannot be resolved for AllowedIPs exclusion
         """
         if not self.config_manager.has_client(username):
             raise ClientNotFoundError(f"Client {username} does not exist")
@@ -287,13 +289,15 @@ class ClientManager:
         client = self.config_manager.get_client(username)
         
         obfuscation = config.get('obfuscation', False) and not direct
+        keep_server_in_allowed_ips = bool(client.get('keep_server_in_allowed_ips', False))
         
-        if obfuscation:
-            allowed_ips_subnets = self.calculate_allowed_ips(
+        if obfuscation and not keep_server_in_allowed_ips:
+            from ..utils import resolve_external_ipv4
+            resolved_ips = resolve_external_ipv4(external_ip)
+            allowed_ips = self.calculate_allowed_ips(
                 client["allowed_ips"],
-                [external_ip + "/32"]
+                [f"{ip}/32" for ip in resolved_ips]
             )
-            allowed_ips = allowed_ips_subnets
         else:
             allowed_ips = client["allowed_ips"]
         

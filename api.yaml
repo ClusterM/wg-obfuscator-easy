@@ -444,6 +444,9 @@ paths:
                   type: string
                   enum: [ERROR, WARNING, INFO, DEBUG, TRACE]
                   description: Obfuscator log verbosity level for this client
+                keep_server_in_allowed_ips:
+                  type: boolean
+                  description: If true, do not exclude the server address from the obfuscated WireGuard AllowedIPs
       responses:
         '200':
           description: Client updated successfully
@@ -669,6 +672,12 @@ paths:
                   type: string
                   enum: [ERROR, WARNING, INFO, DEBUG, TRACE]
                   description: Obfuscator log verbosity level
+                listen_port:
+                  type: integer
+                  nullable: true
+                  minimum: 1
+                  maximum: 65535
+                  description: UDP port the container listens on. Null means use EXTERNAL_PORT.
       responses:
         '200':
           description: Configuration updated successfully
@@ -1060,6 +1069,9 @@ components:
           items:
             type: string
           description: Allowed IP addresses in CIDR format
+        keep_server_in_allowed_ips:
+          type: boolean
+          description: If true, do not exclude the server address from the obfuscated WireGuard AllowedIPs
         obfuscator_port:
           type: integer
           nullable: true
@@ -1106,11 +1118,16 @@ components:
           description: Whether WireGuard server is enabled
         external_ip:
           type: string
-          format: ipv4
-          description: External IP address
+          description: External IPv4 address or hostname used in client Endpoint/target
         external_port:
           type: integer
-          description: External port number
+          description: Port advertised to clients in generated configs
+        listen_port:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 65535
+          description: UDP port the container listens on. Null means use EXTERNAL_PORT.
         server_public_key:
           type: string
           description: Server public key
@@ -1147,7 +1164,7 @@ components:
       properties:
         external_ip:
           type: string
-          format: ipv4
+          description: External IPv4 address or hostname
         external_port:
           type: integer
         subnet:

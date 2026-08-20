@@ -53,11 +53,14 @@ class ServiceManager:
         config = self.config_manager.main
         clients = self.config_manager.clients
         
+        from .utils import get_effective_listen_port
+        listen_port = get_effective_listen_port(config, self.external_port)
+
         # Generate WireGuard config
         wg_config_content = WireGuardConfigGenerator.generate_server_config(
             config=config,
             clients=clients,
-            external_port=self.external_port,
+            external_port=listen_port,
             obfuscation=config.get('obfuscation', False)
         )
         WireGuardConfigGenerator.save_config_file(
@@ -68,7 +71,7 @@ class ServiceManager:
         # Generate obfuscator config
         if config.get('obfuscation', False):
             obf_config_content = ObfuscatorConfigGenerator.generate_server_config(
-                external_port=self.external_port,
+                external_port=listen_port,
                 obfuscation_key=config['obfuscation_key'],
                 masking_type=config.get('masking_type', 'NONE'),
                 masking_forced=config.get('masking_forced', False),
