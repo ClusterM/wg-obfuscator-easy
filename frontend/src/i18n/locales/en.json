@@ -117,7 +117,7 @@
     "generatePresharedKey": "Generate",
     "presharedKeyEmpty": "Preshared key is required when enabled",
     "presharedKeyInvalid": "Preshared key must be a valid WireGuard key",
-    "settingsWarning": "These settings affect only the generation of configurations below and do not affect server operation.",
+    "settingsWarning": "The settings below affect only the generation of the configurations below and do not affect server operation.",
     "maskingTypeOverride": "Override Masking Type",
     "useDefault": "Use Default",
     "maskingTypeOverrideDisabled": "Unavailable because \"Disallow Other Masking\" is enabled in general settings.",

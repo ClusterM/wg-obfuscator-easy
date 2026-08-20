@@ -117,7 +117,7 @@
     "generatePresharedKey": "Сгенерировать",
     "presharedKeyEmpty": "При включённом preshared key ключ обязателен",
     "presharedKeyInvalid": "Preshared key должен быть валидным ключом WireGuard",
-    "settingsWarning": "Данные настройки влияют только на генерацию конфигураций ниже и не влияют на работу сервера.",
+    "settingsWarning": "Настройки ниже влияют только на генерацию конфигураций ниже и не влияют на работу сервера.",
     "maskingTypeOverride": "Переопределить тип маскинга",
     "useDefault": "По умолчанию",
     "maskingTypeOverrideDisabled": "Недоступно, так как включен режим \"Не допускать другой маскинг\" в общих настройках.",
