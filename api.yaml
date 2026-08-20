@@ -434,7 +434,7 @@ paths:
                 masking_type_override:
                   type: string
                   nullable: true
-                  enum: [none, obfs4, scramblesuit]
+                  enum: [NONE, STUN]
                   description: Override masking type for this client (null to use server default)
                 preshared_key:
                   type: string
@@ -663,7 +663,7 @@ paths:
                   description: Obfuscation key (ASCII only, max 300 characters)
                 masking_type:
                   type: string
-                  enum: [none, obfs4, scramblesuit]
+                  enum: [NONE, STUN]
                   description: Masking type
                 masking_forced:
                   type: boolean
@@ -1079,7 +1079,7 @@ components:
         masking_type_override:
           type: string
           nullable: true
-          enum: [none, obfs4, scramblesuit]
+          enum: [NONE, STUN]
           description: Override masking type for this client
         verbosity_level:
           type: string
@@ -1149,7 +1149,7 @@ components:
           description: Obfuscation key
         masking_type:
           type: string
-          enum: [none, obfs4, scramblesuit]
+          enum: [NONE, STUN]
           description: Masking type
         masking_forced:
           type: boolean
