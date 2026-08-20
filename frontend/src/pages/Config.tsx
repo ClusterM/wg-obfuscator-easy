@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
+import { logout } from '../services/auth';
 import './Config.css';
 
 interface Config {
@@ -235,9 +236,7 @@ export default function Config() {
       setConfirmPassword('');
       await loadCredentials();
       // Redirect to login after 2 seconds
-      setTimeout(() => {
-        window.location.href = '/login';
-      }, 2000);
+      setTimeout(logout, 2000);
     } catch (err: any) {
       setError(err.message || t('errors.serverError'));
     } finally {
