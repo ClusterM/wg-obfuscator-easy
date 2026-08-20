@@ -148,6 +148,7 @@ declare -A MSG_EN=(
     [DNS_CONFIGURED]="DNS is correctly configured! Domain %s points to %s."
     [DNS_WAITING]="Waiting for DNS to propagate... (attempt %s/%s)"
     [DNS_VERIFY_FAILED]="Could not verify that the domain points to this server."
+    [DNS_RETRY_PROMPT]="Retry? A negative answer will use a bare IP certificate. [Y/n] "
     [DNS_FALLBACK_IP]="Falling back to an IP certificate."
     [CONTINUE_WITHOUT_HTTPS]="Let's continue without HTTPS for now."
     [SSL_EMAIL_INFO]="You can optionally provide an email address to receive notifications"
@@ -313,6 +314,7 @@ declare -A MSG_RU=(
     [DNS_CONFIGURED]="DNS настроен правильно! Домен %s указывает на %s."
     [DNS_WAITING]="Ожидание распространения DNS... (попытка %s/%s)"
     [DNS_VERIFY_FAILED]="Не удалось проверить, что домен указывает на этот сервер."
+    [DNS_RETRY_PROMPT]="Повторить? При отрицательном ответе будет использоваться голый IP. [Y/n] "
     [DNS_FALLBACK_IP]="Переключаемся на IP-сертификат."
     [CONTINUE_WITHOUT_HTTPS]="Продолжим без HTTPS пока что."
     [SSL_EMAIL_INFO]="Вы можете опционально указать адрес электронной почты для получения уведомлений,"
@@ -1599,34 +1601,46 @@ main() {
 
     DNS_RESOLVED=false
     if [ "$ENABLE_HTTPS" = true ] && [ "$SSL_MODE" = "domain" ]; then
-        print_info "$(msg CHECKING_DNS "$DOMAIN" "$EXTERNAL_IP")"
+        while [ "$DNS_RESOLVED" = false ]; do
+            print_info "$(msg CHECKING_DNS "$DOMAIN" "$EXTERNAL_IP")"
 
-        # Wait a bit for DNS to propagate
-        sleep 5
+            # Wait a bit for DNS to propagate
+            sleep 5
 
-        # Check DNS resolution
-        local max_dns_checks=12
-        local dns_check=0
+            # Check DNS resolution
+            local max_dns_checks=12
+            local dns_check=0
 
-        while [ $dns_check -lt $max_dns_checks ]; do
-            local resolved_ip=$(resolve_domain_ipv4 "$DOMAIN" 2>/dev/null)
+            while [ $dns_check -lt $max_dns_checks ]; do
+                local resolved_ip=$(resolve_domain_ipv4 "$DOMAIN" 2>/dev/null)
 
-            if [ "$resolved_ip" = "$EXTERNAL_IP" ]; then
-                DNS_RESOLVED=true
-                print_info "$(msg DNS_CONFIGURED "$DOMAIN" "$EXTERNAL_IP")"
-                break
+                if [ "$resolved_ip" = "$EXTERNAL_IP" ]; then
+                    DNS_RESOLVED=true
+                    print_info "$(msg DNS_CONFIGURED "$DOMAIN" "$EXTERNAL_IP")"
+                    break
+                fi
+
+                print_info "$(msg DNS_WAITING "$((dns_check + 1))" "$max_dns_checks")"
+                sleep 10
+                dns_check=$((dns_check + 1))
+            done
+
+            if [ "$DNS_RESOLVED" = false ]; then
+                print_warning "$(msg DNS_VERIFY_FAILED)"
+                while true; do
+                    read -p "$(msg DNS_RETRY_PROMPT)" -r
+                    if [[ -z "$REPLY" ]] || [[ "$REPLY" =~ ^[Yy]$ ]]; then
+                        break
+                    elif [[ "$REPLY" =~ ^[Nn]$ ]]; then
+                        print_warning "$(msg DNS_FALLBACK_IP)"
+                        use_ip_certificate
+                        break 2
+                    fi
+                done
             fi
-
-            print_info "$(msg DNS_WAITING "$((dns_check + 1))" "$max_dns_checks")"
-            sleep 10
-            dns_check=$((dns_check + 1))
         done
 
-        if [ "$DNS_RESOLVED" = false ]; then
-            print_warning "$(msg DNS_VERIFY_FAILED)"
-            print_warning "$(msg DNS_FALLBACK_IP)"
-            use_ip_certificate
-        elif [ "$KEEP_OLD_HOST_CONFIG" = false ]; then
+        if [ "$DNS_RESOLVED" = true ] && [ "$KEEP_OLD_HOST_CONFIG" = false ]; then
             prompt_acme_email
         fi
     fi
