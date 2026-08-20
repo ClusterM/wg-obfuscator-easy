@@ -30,6 +30,8 @@ logger = logging.getLogger(__name__)
 
 bp = Blueprint('clients', __name__)
 
+CLIENT_SECRET_FIELDS = ('private_key', 'preshared_key')
+
 
 def require_auth(f):
     """Decorator to require authentication"""
@@ -172,7 +174,16 @@ def get_clients():
                 if client_data.get('latest_handshake') is None:
                     client_data['latest_handshake'] = 0
         
-        return jsonify(clients)
+        # Secrets are only exposed by the per-client endpoint, so that polling the
+        # list does not ship every client's keys on every refresh
+        listed = {
+            username: {
+                key: value for key, value in client_data.items()
+                if key not in CLIENT_SECRET_FIELDS
+            }
+            for username, client_data in clients.items()
+        }
+        return jsonify(listed)
     except Exception as e:
         logger.error(f"Error getting clients: {e}")
         return jsonify({"error": str(e)}), 500

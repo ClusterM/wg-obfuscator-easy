@@ -316,7 +316,10 @@ paths:
       tags:
         - Clients
       summary: List all clients
-      description: Get list of all WireGuard clients with connection statistics
+      description: >-
+        Get list of all WireGuard clients with connection statistics.
+        Secrets (private_key, preshared_key) are omitted; retrieve them
+        through GET /api/clients/{username}.
       operationId: getClients
       security:
         - bearerAuth: []
