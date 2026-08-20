@@ -1639,10 +1639,10 @@ main() {
                 done
             fi
         done
+    fi
 
-        if [ "$DNS_RESOLVED" = true ] && [ "$KEEP_OLD_HOST_CONFIG" = false ]; then
-            prompt_acme_email
-        fi
+    if [ "$ENABLE_HTTPS" = true ] && [ "$KEEP_OLD_HOST_CONFIG" = false ]; then
+        prompt_acme_email
     fi
 
     # Open firewall ports
