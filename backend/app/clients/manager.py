@@ -18,12 +18,15 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Client management operations"""
 
 import base64
+import sqlite3
 import subprocess
 import ipaddress
 import logging
+import threading
 from typing import Dict, Tuple, List, Optional
 
 from ..config.constants import DEFAULT_CLIENT_OBFUSCATOR_PORT
+from ..database import get_allocated_ips
 from ..exceptions import ClientAlreadyExistsError, ClientNotFoundError, ServiceError
 from ..wireguard.manager import WireGuardManager
 from ..wireguard.config import WireGuardConfigGenerator
@@ -45,6 +48,7 @@ class ClientManager:
         self.config_manager = config_manager
         self.wg_manager = wg_manager
         self.obfuscator_manager = obfuscator_manager
+        self._lock = threading.Lock()
     
     def generate_key_pair(self) -> Tuple[str, str]:
         """
@@ -121,6 +125,9 @@ class ClientManager:
         """
         Find free IP address in subnet
         
+        Reads a fresh snapshot from the database so two concurrent callers
+        do not both pick an address that is only missing from the in-memory cache.
+        
         Returns:
             Free IP address (last octet)
             
@@ -128,7 +135,7 @@ class ClientManager:
             ServiceError: If no free IP found
         """
         config = self.config_manager.main
-        ip_in_use = [client["ip"] for client in self.config_manager.clients.values()]
+        ip_in_use = set(get_allocated_ips())
         
         for i in range(1, 254):
             if i not in ip_in_use and i != config["own_ip"]:
@@ -152,28 +159,36 @@ class ClientManager:
             ClientAlreadyExistsError: If client already exists
             ServiceError: If no free IP found or key generation fails
         """
-        if self.config_manager.has_client(username):
-            raise ClientAlreadyExistsError(f"Client {username} already exists")
-        
-        ip = self.find_free_ip()
-        private, public = self.generate_key_pair()
-        
-        new_client = {
-            "ip": ip,
-            "private_key": str(private),
-            "public_key": str(public),
-            "preshared_key": None,
-            "allowed_ips": ["0.0.0.0/0"],
-            "keep_server_in_allowed_ips": False,
-            "obfuscator_port": DEFAULT_CLIENT_OBFUSCATOR_PORT,
-            "masking_type_override": None,
-            "verbosity_level": "INFO",
-            "enabled": True,  # By default, new clients are enabled
-        }
-        
-        self.config_manager.set_client(username, new_client, save=True)
-        logger.info(f"Added client {username} with IP {ip}")
-        return new_client
+        with self._lock:
+            if self.config_manager.has_client(username):
+                raise ClientAlreadyExistsError(f"Client {username} already exists")
+            
+            private, public = self.generate_key_pair()
+            
+            last_error = None
+            for _ in range(5):
+                ip = self.find_free_ip()
+                new_client = {
+                    "ip": ip,
+                    "private_key": str(private),
+                    "public_key": str(public),
+                    "preshared_key": None,
+                    "allowed_ips": ["0.0.0.0/0"],
+                    "keep_server_in_allowed_ips": False,
+                    "obfuscator_port": DEFAULT_CLIENT_OBFUSCATOR_PORT,
+                    "masking_type_override": None,
+                    "verbosity_level": "INFO",
+                    "enabled": True,
+                }
+                try:
+                    self.config_manager.set_client(username, new_client, save=True)
+                    logger.info(f"Added client {username} with IP {ip}")
+                    return new_client
+                except sqlite3.IntegrityError as e:
+                    last_error = e
+                    logger.warning(f"IP {ip} collided while adding {username}, retrying: {e}")
+            
+            raise ServiceError(f"Failed to allocate a unique IP for client {username}: {last_error}")
     
     def delete_client(self, username: str) -> None:
         """

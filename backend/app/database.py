@@ -33,6 +33,9 @@ logger = logging.getLogger(__name__)
 # SQLite database file path (overridable for tests via WG_EASY_DB_FILE)
 DB_FILE = os.getenv("WG_EASY_DB_FILE", "/config/wg-easy.db")
 
+# Increment when adding a new migration in init_database
+CURRENT_SCHEMA_VERSION = 2
+
 # Thread-local storage for database connections (one per thread)
 _local = threading.local()
 
@@ -120,19 +123,75 @@ def init_database() -> None:
             ON clients(enabled)
         """)
 
-        cursor.execute("PRAGMA table_info(clients)")
-        client_columns = {row["name"] for row in cursor.fetchall()}
-        if "preshared_key" not in client_columns:
-            cursor.execute("ALTER TABLE clients ADD COLUMN preshared_key TEXT")
-            logger.info("Added preshared_key column to clients table")
-        if "keep_server_in_allowed_ips" not in client_columns:
-            cursor.execute(
-                "ALTER TABLE clients ADD COLUMN keep_server_in_allowed_ips INTEGER NOT NULL DEFAULT 0"
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS schema_version (
+                version INTEGER NOT NULL
             )
-            logger.info("Added keep_server_in_allowed_ips column to clients table")
+        """)
+        applied = _get_schema_version(cursor)
+        if applied < 1:
+            _migrate_to_v1(cursor)
+            _set_schema_version(cursor, 1)
+        if applied < 2:
+            _migrate_to_v2(cursor)
+            _set_schema_version(cursor, 2)
         
         conn.commit()
         logger.info("Database schema initialized successfully")
+
+
+def _get_schema_version(cursor) -> int:
+    """Return the recorded schema version, or 0 if none is stored"""
+    cursor.execute("SELECT version FROM schema_version")
+    row = cursor.fetchone()
+    return int(row[0]) if row is not None else 0
+
+
+def _set_schema_version(cursor, version: int) -> None:
+    """Replace the recorded schema version"""
+    cursor.execute("DELETE FROM schema_version")
+    cursor.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
+
+
+def _migrate_to_v1(cursor) -> None:
+    """Add optional client columns introduced after the original schema"""
+    cursor.execute("PRAGMA table_info(clients)")
+    client_columns = {row["name"] for row in cursor.fetchall()}
+    if "preshared_key" not in client_columns:
+        cursor.execute("ALTER TABLE clients ADD COLUMN preshared_key TEXT")
+        logger.info("Added preshared_key column to clients table")
+    if "keep_server_in_allowed_ips" not in client_columns:
+        cursor.execute(
+            "ALTER TABLE clients ADD COLUMN keep_server_in_allowed_ips INTEGER NOT NULL DEFAULT 0"
+        )
+        logger.info("Added keep_server_in_allowed_ips column to clients table")
+
+
+def _migrate_to_v2(cursor) -> None:
+    """Add a unique index on client IP when the existing data allows it"""
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_clients_ip'")
+    if cursor.fetchone():
+        return
+    cursor.execute("SELECT ip, COUNT(*) AS n FROM clients GROUP BY ip HAVING n > 1")
+    duplicates = cursor.fetchall()
+    if duplicates:
+        dup_list = ", ".join(f"{row['ip']} (x{row['n']})" for row in duplicates)
+        logger.warning(
+            "Cannot create unique index on clients.ip because duplicates exist: %s. "
+            "New clients will still retry on collision.",
+            dup_list,
+        )
+        return
+    cursor.execute("CREATE UNIQUE INDEX idx_clients_ip ON clients(ip)")
+    logger.info("Created unique index on clients.ip")
+
+
+def get_allocated_ips() -> List[int]:
+    """Return the list of IP host numbers currently assigned to clients"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT ip FROM clients")
+        return [row["ip"] for row in cursor.fetchall()]
 
 
 def get_config_value(key: str, default: Any = None) -> Any:
