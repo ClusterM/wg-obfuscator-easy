@@ -136,7 +136,6 @@ def init_database() -> None:
             _migrate_to_v2(cursor)
             _set_schema_version(cursor, 2)
         
-        conn.commit()
         logger.info("Database schema initialized successfully")
 
 
@@ -194,22 +193,27 @@ def get_allocated_ips() -> List[int]:
         return [row["ip"] for row in cursor.fetchall()]
 
 
+def _decode_config_value(value_str: str) -> Any:
+    """Parse a stored config value as JSON, falling back to the raw string"""
+    try:
+        return json.loads(value_str)
+    except (json.JSONDecodeError, TypeError):
+        return value_str
+
+
+def _read_config_value(cursor, key: str, default: Any = None) -> Any:
+    """Read a config value using an existing cursor (no nested transaction)"""
+    cursor.execute("SELECT value FROM config WHERE key = ?", (key,))
+    row = cursor.fetchone()
+    if row is None:
+        return default
+    return _decode_config_value(row["value"])
+
+
 def get_config_value(key: str, default: Any = None) -> Any:
     """Get configuration value from database"""
     with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT value FROM config WHERE key = ?", (key,))
-        row = cursor.fetchone()
-        
-        if row is None:
-            return default
-        
-        value_str = row['value']
-        # Try to parse as JSON, fallback to string
-        try:
-            return json.loads(value_str)
-        except (json.JSONDecodeError, TypeError):
-            return value_str
+        return _read_config_value(conn.cursor(), key, default)
 
 
 def set_config_value(key: str, value: Any) -> None:
@@ -287,8 +291,9 @@ def get_client(username: str) -> Optional[Dict[str, Any]]:
             return None
         
         client = dict(row)
+        subnet = _read_config_value(cursor, "subnet")
         # Parse JSON fields
-        client['ip_full'] = f"{get_config_value("subnet")}.{client['ip']}"
+        client['ip_full'] = f"{subnet}.{client['ip']}"
         client['allowed_ips'] = json.loads(client['allowed_ips'])
         client['enabled'] = bool(client['enabled'])
         client['preshared_key'] = client.get('preshared_key') or None
@@ -307,7 +312,7 @@ def get_all_clients() -> Dict[str, Dict[str, Any]]:
         rows = cursor.fetchall()
         
         clients = {}
-        subnet = get_config_value("subnet")
+        subnet = _read_config_value(cursor, "subnet")
         for row in rows:
             username = row['username']
             client = dict(row)
