@@ -18,13 +18,15 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Service orchestration for applying configuration changes"""
 
 import logging
-from typing import Optional
+import os
+from typing import Dict, List, Optional
 
 from .wireguard.config import WireGuardConfigGenerator
 from .wireguard.manager import WireGuardManager
 from .obfuscator.config import ObfuscatorConfigGenerator
 from .obfuscator.manager import ObfuscatorManager
-from .config.constants import INTERNAL_WG_PORT
+from .config.constants import INTERNAL_WG_PORT, WG_OBFUSCATOR_CONFIG_FILE
+from .exceptions import ServiceError
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +84,40 @@ class ServiceManager:
         
         logger.debug("Generated WireGuard and obfuscator configuration files")
     
+    def _config_paths(self) -> List[str]:
+        """Return the service config files this manager writes"""
+        wg_interface = self.config_manager.main.get("wg_interface", "wg0")
+        return [
+            f"/etc/wireguard/{wg_interface}.conf",
+            WG_OBFUSCATOR_CONFIG_FILE,
+        ]
+
+    def _snapshot_files(self) -> Dict[str, Optional[str]]:
+        """Read current config file contents so they can be restored later"""
+        snapshots = {}
+        for path in self._config_paths():
+            try:
+                with open(path, "r") as handle:
+                    snapshots[path] = handle.read()
+            except FileNotFoundError:
+                snapshots[path] = None
+        return snapshots
+
+    def _restore_files(self, snapshots: Dict[str, Optional[str]]) -> None:
+        """Restore config files from a snapshot taken before generate_configs"""
+        for path, content in snapshots.items():
+            if content is None:
+                try:
+                    os.remove(path)
+                except FileNotFoundError:
+                    pass
+            else:
+                directory = os.path.dirname(path)
+                if directory:
+                    os.makedirs(directory, exist_ok=True)
+                with open(path, "w") as handle:
+                    handle.write(content)
+
     def restart_services(self) -> None:
         """Restart WireGuard and obfuscator services"""
         config = self.config_manager.main
@@ -107,7 +143,23 @@ class ServiceManager:
     def apply_config_changes(self) -> None:
         """Apply configuration changes: generate configs and restart services"""
         logger.info("Applying configuration changes...")
-        self.generate_configs()
-        self.restart_services()
+        snapshots = self._snapshot_files()
+        try:
+            self.generate_configs()
+            self.restart_services()
+        except Exception as e:
+            logger.error(f"Failed to apply configuration changes: {e}")
+            try:
+                self._restore_files(snapshots)
+                self.restart_services()
+            except Exception as restore_error:
+                logger.error(f"Rollback of service configuration also failed: {restore_error}")
+                raise ServiceError(
+                    f"Failed to apply configuration changes and rollback also failed "
+                    f"({restore_error}). Original error: {e}"
+                ) from e
+            raise ServiceError(
+                f"Failed to apply configuration changes; previous configuration was restored: {e}"
+            ) from e
         logger.info("Configuration changes applied successfully")
 
