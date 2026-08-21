@@ -456,6 +456,27 @@ def save_client(username: str, client_data: Dict[str, Any]) -> None:
             ))
 
 
+def update_client_handshake(username: str, handshake: int) -> bool:
+    """
+    Persist a newer latest_handshake without rewriting the rest of the row
+    
+    Returns:
+        True if the stored value was updated
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        now = datetime.now().isoformat()
+        cursor.execute(
+            """
+            UPDATE clients
+            SET latest_handshake = ?, updated_at = ?
+            WHERE username = ? AND COALESCE(latest_handshake, 0) < ?
+            """,
+            (handshake, now, username, handshake),
+        )
+        return cursor.rowcount > 0
+
+
 def delete_client(username: str) -> None:
     """Delete client"""
     with get_db() as conn:

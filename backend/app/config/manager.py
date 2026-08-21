@@ -25,7 +25,8 @@ from ..exceptions import ConfigError
 from ..database import (
     init_database,
     get_all_config, get_config_value, set_config_value,
-    get_all_clients, get_client, save_client, delete_client, client_exists
+    get_all_clients, get_client, save_client, delete_client, client_exists,
+    update_client_handshake,
 )
 
 logger = logging.getLogger(__name__)
@@ -125,6 +126,12 @@ class ConfigManager:
             updated_client = get_client(username)
             if updated_client:
                 self.clients[username] = updated_client
+    
+    def update_client_handshake(self, username: str, handshake: int) -> None:
+        """Update only latest_handshake in the database and in-memory cache"""
+        if update_client_handshake(username, handshake):
+            if username in self.clients:
+                self.clients[username]["latest_handshake"] = handshake
     
     def delete_client(self, username: str, save: bool = True) -> None:
         """Delete client configuration and optionally save"""

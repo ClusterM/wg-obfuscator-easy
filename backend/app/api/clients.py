@@ -142,8 +142,7 @@ def get_clients():
                         # If new_handshake is 0, it means no handshake yet, so keep stored value
                         if new_handshake > stored_handshake:
                             client_data['latest_handshake'] = new_handshake
-                            # Save latest_handshake to database if it's newer
-                            config_manager.set_client(username, client_data, save=True)
+                            config_manager.update_client_handshake(username, new_handshake)
                         else:
                             # Keep stored value, don't overwrite with 0 or older value
                             pass
@@ -298,8 +297,7 @@ def get_client(username):
                         # If new_handshake is 0, it means no handshake yet, so keep stored value
                         if new_handshake > stored_handshake:
                             client['latest_handshake'] = new_handshake
-                            # Save to DB if newer
-                            config_manager.set_client(username, client, save=True)
+                            config_manager.update_client_handshake(username, new_handshake)
                         # else: keep stored value, don't overwrite with 0 or older value
                         break
                 else:

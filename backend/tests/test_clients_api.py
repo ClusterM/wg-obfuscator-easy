@@ -24,9 +24,14 @@ class FakeConfigManager:
     def __init__(self):
         self.main = {"obfuscation": True}
         self.clients = {}
+        self.set_client_calls = 0
+        self.handshake_updates = []
 
     def set_client(self, *a, **k):
-        pass
+        self.set_client_calls += 1
+
+    def update_client_handshake(self, username, handshake):
+        self.handshake_updates.append((username, handshake))
 
 
 @pytest.fixture
@@ -84,3 +89,45 @@ def test_clients_list_omits_secrets(client):
 def test_clients_list_requires_auth(client):
     resp = client.get("/api/clients")
     assert resp.status_code == 401
+
+
+def test_clients_list_updates_handshake_without_full_save(monkeypatch):
+    from app.api import create_app
+    from app import database
+    from app.wireguard import stats as wg_stats
+
+    sample = {
+        "alice": {
+            "ip": 2,
+            "private_key": "PRIV_SECRET",
+            "public_key": "PUB",
+            "preshared_key": None,
+            "enabled": True,
+            "latest_handshake": 1,
+        }
+    }
+    monkeypatch.setattr(database, "get_all_clients", lambda: {k: dict(v) for k, v in sample.items()})
+
+    class FakeStats:
+        def __init__(self, *a, **k):
+            pass
+
+        def get_stats(self, clients):
+            return {
+                "peers": [{
+                    "public_key": "PUB",
+                    "is_connected": True,
+                    "transfer_rx_bytes": 10,
+                    "transfer_tx_bytes": 20,
+                    "latest_handshake": 99,
+                }]
+            }
+
+    monkeypatch.setattr(wg_stats, "WireGuardStats", FakeStats)
+    config = FakeConfigManager()
+    app = create_app(config, None, FakeWG(), FakeObf(), FakeTokenManager(), "1.2.3.4", 51820)
+    resp = app.test_client().get("/api/clients", headers=AUTH)
+    assert resp.status_code == 200
+    assert config.set_client_calls == 0
+    assert config.handshake_updates == [("alice", 99)]
+    assert resp.get_json()["alice"]["latest_handshake"] == 99
