@@ -142,7 +142,6 @@ declare -A MSG_EN=(
     [SSL_CHOICE_SKIP]="Skip HTTPS"
     [SSL_CHOICE_PROMPT]="Choose an option [1]: "
     [SSL_IP_NOTE]="Issuing a Let's Encrypt certificate for IP %s (renewed automatically)."
-    [SSL_LETSENCRYPT]="Let's Encrypt will automatically provide an SSL certificate."
     [ENTER_DOMAIN]="Enter your domain name: "
     [DOMAIN_EMPTY]="Domain cannot be empty. Please enter your domain name."
     [DOMAIN_INVALID]="Invalid domain name."
@@ -153,16 +152,6 @@ declare -A MSG_EN=(
     [DNS_RETRY_PROMPT]="Retry? A negative answer will use a bare IP certificate. [Y/n] "
     [DNS_FALLBACK_IP]="Falling back to an IP certificate."
     [CONTINUE_WITHOUT_HTTPS]="Let's continue without HTTPS for now."
-    [SSL_EMAIL_INFO]="You can optionally provide an email address to receive notifications"
-    [SSL_EMAIL_INFO2]="when your certificate is about to expire (certificates are renewed automatically)."
-    [SSL_EMAIL_OPTIONAL]="This email is completely optional - SSL certificates will work without it."
-    [EMAIL_PROMPT]="Enter email address for notifications (or press Enter to skip): "
-    [EMAIL_SKIPPED]="Continuing without email. SSL certificates will still work perfectly."
-    [EMAIL_SET]="Email set: %s"
-    [EMAIL_NOTIFICATIONS]="You'll receive notifications about certificate expiration (if any)."
-    [EMAIL_INVALID]="Invalid email format!"
-    [EMAIL_INVALID_FORMAT]="Please enter a valid email address (e.g., user@example.com)"
-    [EMAIL_SKIP_NOTE]="or press Enter without typing anything to skip."
     [HTTPS_SETUP]="Setting up HTTPS with Caddy..."
     [HTTPS_FAILED]="HTTPS setup failed. Let's continue without HTTPS."
     [HTTP_PROXY_SETUP]="Setting up HTTP reverse proxy with Caddy on port 80..."
@@ -310,7 +299,6 @@ declare -A MSG_RU=(
     [SSL_CHOICE_SKIP]="Пропустить HTTPS"
     [SSL_CHOICE_PROMPT]="Выберите вариант [1]: "
     [SSL_IP_NOTE]="Выпуск сертификата Let's Encrypt для IP %s (продлевается автоматически)."
-    [SSL_LETSENCRYPT]="Let's Encrypt автоматически предоставит SSL-сертификат."
     [ENTER_DOMAIN]="Введите ваше доменное имя: "
     [DOMAIN_EMPTY]="Домен не может быть пустым. Пожалуйста, введите ваше доменное имя."
     [DOMAIN_INVALID]="Некорректное доменное имя."
@@ -321,16 +309,6 @@ declare -A MSG_RU=(
     [DNS_RETRY_PROMPT]="Повторить? При отрицательном ответе будет использоваться голый IP. [Y/n] "
     [DNS_FALLBACK_IP]="Переключаемся на IP-сертификат."
     [CONTINUE_WITHOUT_HTTPS]="Продолжим без HTTPS пока что."
-    [SSL_EMAIL_INFO]="Вы можете опционально указать адрес электронной почты для получения уведомлений,"
-    [SSL_EMAIL_INFO2]="когда ваш сертификат истекает (сертификаты продлеваются автоматически)."
-    [SSL_EMAIL_OPTIONAL]="Этот email полностью опционален - SSL-сертификаты будут работать и без него."
-    [EMAIL_PROMPT]="Введите адрес электронной почты для уведомлений (или нажмите Enter для пропуска): "
-    [EMAIL_SKIPPED]="Продолжение без email. SSL-сертификаты будут отлично работать."
-    [EMAIL_SET]="Email установлен: %s"
-    [EMAIL_NOTIFICATIONS]="Вы будете получать уведомления об истечении сертификата (если они будут)."
-    [EMAIL_INVALID]="Некорректный формат email!"
-    [EMAIL_INVALID_FORMAT]="Пожалуйста, введите корректный адрес email (например, user@example.com)"
-    [EMAIL_SKIP_NOTE]="или нажмите Enter, не вводя ничего, для пропуска."
     [HTTPS_SETUP]="Настройка HTTPS с Caddy..."
     [HTTPS_FAILED]="Настройка HTTPS не удалась. Продолжим без HTTPS."
     [HTTP_PROXY_SETUP]="Настройка HTTP обратного прокси Caddy на порту 80..."
@@ -1427,34 +1405,6 @@ prompt_ssl_setup() {
     done
 }
 
-prompt_acme_email() {
-    print_info "$(msg SSL_LETSENCRYPT)"
-    print_info "$(msg SSL_EMAIL_INFO)"
-    print_info "$(msg SSL_EMAIL_INFO2)"
-    print_info "$(msg SSL_EMAIL_OPTIONAL)"
-    echo ""
-    while true; do
-        read -p "$(msg EMAIL_PROMPT)" -r
-        if [ -z "$REPLY" ]; then
-            echo ""
-            ACME_EMAIL=""
-            print_info "$(msg EMAIL_SKIPPED)"
-            break
-        elif echo "$REPLY" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; then
-            echo ""
-            ACME_EMAIL="$REPLY"
-            print_info "$(msg EMAIL_SET "$ACME_EMAIL")"
-            print_info "$(msg EMAIL_NOTIFICATIONS)"
-            break
-        else
-            echo ""
-            print_error "$(msg EMAIL_INVALID)"
-            print_error "$(msg EMAIL_INVALID_FORMAT)"
-            print_error "$(msg EMAIL_SKIP_NOTE)"
-        fi
-    done
-}
-
 use_ip_certificate() {
     ENABLE_HTTPS=true
     SSL_MODE="ip"
@@ -1824,10 +1774,6 @@ main() {
                 done
             fi
         done
-    fi
-
-    if [ "$ENABLE_HTTPS" = true ] && [ "$KEEP_OLD_HOST_CONFIG" = false ]; then
-        prompt_acme_email
     fi
 
     # Open firewall ports
