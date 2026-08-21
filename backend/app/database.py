@@ -30,8 +30,8 @@ from .exceptions import ConfigError
 
 logger = logging.getLogger(__name__)
 
-# SQLite database file path
-DB_FILE = "/config/wg-easy.db"
+# SQLite database file path (overridable for tests via WG_EASY_DB_FILE)
+DB_FILE = os.getenv("WG_EASY_DB_FILE", "/config/wg-easy.db")
 
 # Thread-local storage for database connections (one per thread)
 _local = threading.local()

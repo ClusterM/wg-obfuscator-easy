@@ -3,3 +3,8 @@
 /frontend/dist
 *.pyc
 run.sh
+__pycache__/
+.pytest_cache/
+.coverage
+htmlcov/
+frontend/coverage/
