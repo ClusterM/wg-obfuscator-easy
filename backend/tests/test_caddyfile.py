@@ -108,6 +108,21 @@ def test_is_ipv4_rejects_out_of_range_octets(tmp_path):
     assert result.stdout.strip().splitlines() == ["ok", "bad", "host"]
 
 
+def test_upsert_makes_caddyfile_world_readable(tmp_path):
+    caddyfile = tmp_path / "Caddyfile"
+    caddyfile.write_text("other.example {\n    reverse_proxy 10.0.0.5:80\n}\n")
+    caddyfile.chmod(0o600)
+    run_helpers(
+        f"""
+block=$(render_caddy_managed_block "vpn.example" "8080" "https" "domain" "")
+upsert_caddy_managed_block "{caddyfile}" "$block" "vpn.example"
+""",
+        tmp_path,
+    )
+    mode = caddyfile.stat().st_mode & 0o777
+    assert mode == 0o644
+
+
 def test_ip_mode_puts_email_inside_issuer(tmp_path):
     result = run_helpers(
         'render_caddy_managed_block "203.0.113.1" "8080" "https" "ip" "admin@example.com"',

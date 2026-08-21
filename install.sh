@@ -1153,6 +1153,23 @@ remove_legacy_caddy_blocks() {
     '
 }
 
+fix_caddyfile_permissions() {
+    local caddyfile=$1
+    # Caddy runs as the caddy user; a 0600 file from mktemp is unreadable to it
+    chmod 644 "$caddyfile" 2>/dev/null || true
+    if command_exists id && id caddy >/dev/null 2>&1; then
+        chown caddy:caddy "$caddyfile" 2>/dev/null || true
+    fi
+}
+
+install_caddyfile() {
+    local source_file=$1
+    local caddyfile=$2
+    # Write in place so an existing inode (and its owner) is preserved
+    cat "$source_file" > "$caddyfile"
+    fix_caddyfile_permissions "$caddyfile"
+}
+
 upsert_caddy_managed_block() {
     local caddyfile=$1
     local block=$2
@@ -1163,7 +1180,7 @@ upsert_caddy_managed_block() {
     printf '%s\n' "$block" > "$block_file"
 
     if [ ! -f "$caddyfile" ]; then
-        cat "$block_file" > "$caddyfile"
+        install_caddyfile "$block_file" "$caddyfile"
         rm -f "$tmp" "$block_file"
         return 0
     fi
@@ -1189,8 +1206,8 @@ upsert_caddy_managed_block() {
         fi
         cat "$block_file" >> "$tmp"
     fi
-    mv "$tmp" "$caddyfile"
-    rm -f "$block_file"
+    install_caddyfile "$tmp" "$caddyfile"
+    rm -f "$tmp" "$block_file"
 }
 
 # Function to configure Caddy
@@ -1275,7 +1292,8 @@ configure_caddy() {
     elif command_exists caddy; then
         print_error "$(msg CADDY_VALIDATION_FAILED)"
         if [ -n "$backup_file" ] && [ -f "$backup_file" ]; then
-            cp "$backup_file" "$caddyfile"
+            cat "$backup_file" > "$caddyfile"
+            fix_caddyfile_permissions "$caddyfile"
             print_warning "$(msg CADDY_VALIDATION_RESTORED "$backup_file")"
         fi
         return 1
