@@ -78,10 +78,12 @@ declare -A MSG_EN=(
     [CADDY_CONFIGURING]="Configuring Caddy HTTP reverse proxy for host: %s"
     [CADDY_TARGET_PORT]="Configuring Caddy for target port: %s (proxying to %s)"
     [CADDY_BACKUP]="Backing up existing Caddyfile to %s"
+    [CADDY_VALIDATION_RESTORED]="Caddyfile validation failed; restored the previous file from %s"
+    [CADDY_LEGACY_MIGRATED]="Replaced the previous wg-obfuscator-easy Caddy site with a managed block"
     [CADDY_DOMAIN_SETUP]="Configuring Caddy with a Let's Encrypt domain certificate..."
     [CADDY_IP_SETUP]="Configuring Caddy with a Let's Encrypt IP certificate..."
     [CADDY_CONFIG_VALID]="Caddyfile configuration is valid"
-    [CADDY_VALIDATION_FAILED]="Caddyfile validation failed, but continuing..."
+    [CADDY_VALIDATION_FAILED]="Caddyfile validation failed"
     [CADDY_RELOADING]="Reloading Caddy configuration..."
     [CADDY_RELOADED]="Caddy configuration reloaded"
     [CADDY_RELOAD_FAILED]="Caddy reload failed or timed out, restarting..."
@@ -244,10 +246,12 @@ declare -A MSG_RU=(
     [CADDY_CONFIGURING]="Настройка HTTP обратного прокси Caddy для хоста: %s"
     [CADDY_TARGET_PORT]="Настройка Caddy для целевого порта: %s (проксирование на %s)"
     [CADDY_BACKUP]="Создание резервной копии Caddyfile в %s"
+    [CADDY_VALIDATION_RESTORED]="Проверка Caddyfile не удалась; восстановлен предыдущий файл из %s"
+    [CADDY_LEGACY_MIGRATED]="Предыдущий сайт wg-obfuscator-easy в Caddy заменён управляемым блоком"
     [CADDY_DOMAIN_SETUP]="Настройка Caddy с доменным сертификатом Let's Encrypt..."
     [CADDY_IP_SETUP]="Настройка Caddy с IP-сертификатом Let's Encrypt..."
     [CADDY_CONFIG_VALID]="Конфигурация Caddyfile корректна"
-    [CADDY_VALIDATION_FAILED]="Проверка Caddyfile не удалась, но продолжаем..."
+    [CADDY_VALIDATION_FAILED]="Проверка Caddyfile не удалась"
     [CADDY_RELOADING]="Перезагрузка конфигурации Caddy..."
     [CADDY_RELOADED]="Конфигурация Caddy перезагружена"
     [CADDY_RELOAD_FAILED]="Перезагрузка Caddy не удалась или превышено время ожидания, перезапуск..."
@@ -999,6 +1003,186 @@ reset_admin_credentials() {
     return 0
 }
 
+CADDY_BLOCK_BEGIN="# >>> wg-obfuscator-easy managed block - do not edit >>>"
+CADDY_BLOCK_END="# <<< wg-obfuscator-easy managed block <<<"
+
+is_valid_acme_email() {
+    local email=$1
+    [ -n "$email" ] && echo "$email" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+}
+
+render_caddy_managed_block() {
+    local site_label=$1
+    local http_port=$2
+    local mode=$3
+    local ssl_mode=$4
+    local acme_email=$5
+
+    echo "$CADDY_BLOCK_BEGIN"
+    cat <<EOF
+$site_label {
+    reverse_proxy 127.0.0.1:$http_port {
+        header_up Host {host}
+        header_up X-Real-IP {remote}
+        header_up X-Forwarded-For {remote}
+        header_up X-Forwarded-Proto {scheme}
+    }
+EOF
+    if [ "$mode" = "https" ] && [ "$ssl_mode" = "ip" ]; then
+        cat <<EOF
+    tls {
+        issuer acme {
+            dir https://acme-v02.api.letsencrypt.org/directory
+            profile shortlived
+            disable_tlsalpn_challenge
+EOF
+        if is_valid_acme_email "$acme_email"; then
+            echo "            email $acme_email"
+        fi
+        cat <<'EOF'
+        }
+    }
+EOF
+    elif [ "$mode" = "https" ] && is_valid_acme_email "$acme_email"; then
+        echo "    tls $acme_email"
+    fi
+    cat <<'EOF'
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        X-XSS-Protection "1; mode=block"
+    }
+
+    log {
+        output file /var/log/caddy/access.log
+    }
+}
+EOF
+    echo "$CADDY_BLOCK_END"
+}
+
+backup_caddyfile() {
+    local caddyfile=$1
+    local backup
+    if [ ! -f "$caddyfile" ]; then
+        echo ""
+        return 0
+    fi
+    backup="${caddyfile}.backup.$(date +%Y%m%d%H%M%S)"
+    cp "$caddyfile" "$backup"
+    echo "$backup"
+}
+
+remove_legacy_caddy_blocks() {
+    local site_label=$1
+    awk -v site="$site_label" '
+        function count_char(s, c,    n, i) {
+            n = 0
+            for (i = 1; i <= length(s); i++) if (substr(s, i, 1) == c) n++
+            return n
+        }
+        function trim(s) {
+            gsub(/^[ \t]+|[ \t]+$/, "", s)
+            return s
+        }
+        function first_token(s) {
+            sub(/^[ \t]+/, "", s)
+            split(s, a, /[ \t{]/)
+            return a[1]
+        }
+        function is_email_only(text,    t) {
+            t = text
+            gsub(/#[^\n]*/, "", t)
+            gsub(/[{}]/, " ", t)
+            gsub(/[ \t]+/, " ", t)
+            gsub(/\n+/, "\n", t)
+            gsub(/^[ \t\n]+|[ \t\n]+$/, "", t)
+            return t ~ /^email[ \t]+[^ \t\n]+$/
+        }
+        function drop_block() {
+            return (kind == "global" && is_email_only(buf)) || \
+                   (kind == "site" && index(buf, "reverse_proxy") && index(buf, "127.0.0.1"))
+        }
+        BEGIN { depth = 0; collecting = 0; buf = ""; kind = "" }
+        {
+            if (!collecting) {
+                if (trim($0) == "{") {
+                    collecting = 1
+                    kind = "global"
+                    buf = $0 ORS
+                    depth = 1
+                    next
+                }
+                if (index($0, "{") && first_token($0) == site) {
+                    collecting = 1
+                    kind = "site"
+                    buf = $0 ORS
+                    depth = count_char($0, "{") - count_char($0, "}")
+                    if (depth <= 0) {
+                        if (!drop_block()) printf "%s", buf
+                        collecting = 0
+                        buf = ""
+                    }
+                    next
+                }
+                print
+                next
+            }
+            buf = buf $0 ORS
+            depth += count_char($0, "{") - count_char($0, "}")
+            if (depth <= 0) {
+                if (!drop_block()) printf "%s", buf
+                collecting = 0
+                buf = ""
+                kind = ""
+            }
+        }
+        END {
+            if (collecting && !drop_block()) printf "%s", buf
+        }
+    '
+}
+
+upsert_caddy_managed_block() {
+    local caddyfile=$1
+    local block=$2
+    local site_label=$3
+    local tmp block_file
+    tmp=$(mktemp)
+    block_file=$(mktemp)
+    printf '%s\n' "$block" > "$block_file"
+
+    if [ ! -f "$caddyfile" ]; then
+        cat "$block_file" > "$caddyfile"
+        rm -f "$tmp" "$block_file"
+        return 0
+    fi
+
+    if grep -qF "$CADDY_BLOCK_BEGIN" "$caddyfile"; then
+        awk -v begin="$CADDY_BLOCK_BEGIN" -v end="$CADDY_BLOCK_END" -v blockfile="$block_file" '
+            $0 == begin {
+                while ((getline line < blockfile) > 0) print line
+                close(blockfile)
+                skip = 1
+                next
+            }
+            skip && $0 == end { skip = 0; next }
+            !skip { print }
+        ' "$caddyfile" > "$tmp"
+    else
+        remove_legacy_caddy_blocks "$site_label" < "$caddyfile" > "$tmp"
+        if [ -s "$tmp" ]; then
+            if [ "$(tail -c1 "$tmp" | wc -l)" -eq 0 ]; then
+                echo >> "$tmp"
+            fi
+            echo >> "$tmp"
+        fi
+        cat "$block_file" >> "$tmp"
+    fi
+    mv "$tmp" "$caddyfile"
+    rm -f "$block_file"
+}
+
 # Function to configure Caddy
 configure_caddy() {
     local domain_or_host=$1
@@ -1037,10 +1221,10 @@ configure_caddy() {
 
     print_info "$(msg CADDY_TARGET_PORT "$http_port" "$web_prefix")"
 
-    # Backup existing Caddyfile if it exists
+    local backup_file=""
     if [ -f "$caddyfile" ]; then
-        print_info "$(msg CADDY_BACKUP "${caddyfile}.backup")"
-        cp "$caddyfile" "${caddyfile}.backup"
+        backup_file=$(backup_caddyfile "$caddyfile")
+        print_info "$(msg CADDY_BACKUP "$backup_file")"
     fi
 
     if [ "$mode" = "https" ]; then
@@ -1051,48 +1235,12 @@ configure_caddy() {
         fi
     fi
 
-    {
-        if [ "$mode" = "https" ] && [ -n "$acme_email" ] && echo "$acme_email" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; then
-            cat <<EOF
-{
-    email $acme_email
-}
-
-EOF
-        fi
-        cat <<EOF
-$site_label {
-    reverse_proxy 127.0.0.1:$http_port {
-        header_up Host {host}
-        header_up X-Real-IP {remote}
-        header_up X-Forwarded-For {remote}
-        header_up X-Forwarded-Proto {scheme}
-    }
-EOF
-        if [ "$mode" = "https" ] && [ "$ssl_mode" = "ip" ]; then
-            cat <<'EOF'
-    tls {
-        issuer acme {
-            dir https://acme-v02.api.letsencrypt.org/directory
-            profile shortlived
-            disable_tlsalpn_challenge
-        }
-    }
-EOF
-        fi
-        cat <<'EOF'
-    header {
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options "DENY"
-        X-XSS-Protection "1; mode=block"
-    }
-
-    log {
-        output file /var/log/caddy/access.log
-    }
-}
-EOF
-    } > "$caddyfile"
+    local managed_block
+    managed_block=$(render_caddy_managed_block "$site_label" "$http_port" "$mode" "$ssl_mode" "$acme_email")
+    if [ -f "$caddyfile" ] && ! grep -qF "$CADDY_BLOCK_BEGIN" "$caddyfile"; then
+        print_info "$(msg CADDY_LEGACY_MIGRATED)"
+    fi
+    upsert_caddy_managed_block "$caddyfile" "$managed_block" "$site_label"
 
     # Create log directory with proper permissions
     mkdir -p /var/log/caddy
@@ -1111,11 +1259,16 @@ EOF
         chmod 755 /var/log/caddy
     fi
     
-    # Test Caddyfile configuration
-    if caddy validate --config "$caddyfile" 1>/dev/null 2>/dev/null; then
+    # Test Caddyfile configuration; restore the previous file on failure
+    if command_exists caddy && caddy validate --config "$caddyfile" 1>/dev/null 2>/dev/null; then
         print_info "$(msg CADDY_CONFIG_VALID)"
-    else
-        print_warning "$(msg CADDY_VALIDATION_FAILED)"
+    elif command_exists caddy; then
+        print_error "$(msg CADDY_VALIDATION_FAILED)"
+        if [ -n "$backup_file" ] && [ -f "$backup_file" ]; then
+            cp "$backup_file" "$caddyfile"
+            print_warning "$(msg CADDY_VALIDATION_RESTORED "$backup_file")"
+        fi
+        return 1
     fi
     
     # Reload or restart Caddy
@@ -1774,6 +1927,7 @@ ACME_EMAIL="$ACME_EMAIL"
 EOF
 }
 
-# Run main function
-main "$@"
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+    main "$@"
+fi
 
