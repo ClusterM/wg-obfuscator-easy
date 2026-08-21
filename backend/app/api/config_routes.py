@@ -26,6 +26,7 @@ from ..config.constants import (
 )
 from ..exceptions import ConfigValidationError, ServiceError
 from ..auth.tokens import require_auth
+from .errors import error_response
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +91,7 @@ def get_config():
         return jsonify(_config_response(config, external_ip, external_port))
     except Exception as e:
         logger.error(f"Error getting config: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 @bp.route('', methods=['PATCH'])
@@ -225,7 +226,7 @@ def update_config():
         return jsonify(_config_response(config, current_app.external_ip, current_app.external_port))
     except Exception as e:
         logger.error(f"Error updating config: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 @bp.route('/regenerate-keys', methods=['POST'])
@@ -247,5 +248,5 @@ def regenerate_server_keys():
         })
     except Exception as e:
         logger.error(f"Error regenerating server keys: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 

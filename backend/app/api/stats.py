@@ -23,6 +23,7 @@ from functools import wraps
 
 from ..config.constants import APP_VERSION, AUTH_ENABLED
 from ..auth.tokens import require_auth, get_bearer_token
+from .errors import error_response
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +114,7 @@ def get_status():
         })
     except Exception as e:
         logger.error(f"Error getting status: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 @bp.route('/stats', methods=['GET'])
@@ -134,7 +135,7 @@ def get_stats():
         return jsonify(stats)
     except Exception as e:
         logger.error(f"Error getting stats: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 @bp.route('/stats/<username>', methods=['GET'])
@@ -173,7 +174,7 @@ def get_client_stats(username):
         })
     except Exception as e:
         logger.error(f"Error getting client stats: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 @bp.route('/logs/obfuscator', methods=['GET'])
@@ -209,7 +210,7 @@ def get_obfuscator_logs():
         })
     except Exception as e:
         logger.error(f"Error getting obfuscator logs: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 def _collect_wireguard_peer_map(config_manager, wg_manager):
@@ -307,7 +308,7 @@ def get_metrics_system():
         return _format_plain_metrics(lines)
     except Exception as e:
         logger.error(f"Error generating system metrics: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 @bp.route('/metrics/clients/<username>', methods=['GET'])
@@ -327,7 +328,7 @@ def get_metrics_client(username):
         return _format_plain_metrics(lines)
     except Exception as e:
         logger.error(f"Error generating metrics for client {username}: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 @bp.route('/metrics/clients', methods=['GET'])
@@ -343,7 +344,7 @@ def get_metrics_clients():
         return _format_plain_metrics(lines)
     except Exception as e:
         logger.error("Error generating metrics for all clients: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 @bp.route('/metrics/all', methods=['GET'])
@@ -362,7 +363,7 @@ def get_metrics_all():
         return _format_plain_metrics(lines)
     except Exception as e:
         logger.error(f"Error generating all metrics: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 @bp.route('/metrics/token', methods=['GET'])
@@ -376,7 +377,7 @@ def get_metrics_token_endpoint():
         return jsonify({"token": token})
     except Exception as e:
         logger.error(f"Error getting metrics token: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 @bp.route('/metrics/token', methods=['POST'])
@@ -393,7 +394,7 @@ def generate_metrics_token_endpoint():
         return jsonify({"token": token})
     except Exception as e:
         logger.error(f"Error generating metrics token: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 @bp.route('/metrics/token', methods=['DELETE'])
@@ -408,4 +409,4 @@ def delete_metrics_token_endpoint():
         return jsonify({"message": "Metrics token deleted successfully"})
     except Exception as e:
         logger.error(f"Error deleting metrics token: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)

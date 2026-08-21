@@ -26,6 +26,7 @@ from flask import Blueprint, request, jsonify, current_app
 import pytz
 
 from ..auth.tokens import require_auth
+from .errors import error_response
 
 logger = logging.getLogger(__name__)
 
@@ -233,7 +234,7 @@ def get_system_timezone():
 
     except Exception as e:
         logger.error(f"Error getting system timezone: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 @bp.route('/timezone', methods=['PATCH'])
@@ -271,4 +272,4 @@ def set_system_timezone_endpoint():
 
     except Exception as e:
         logger.error(f"Error setting system timezone: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)

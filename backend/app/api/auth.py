@@ -23,6 +23,7 @@ import logging
 from ..auth.tokens import TokenManager, require_auth
 from ..auth.password import verify_password, is_legacy_hash
 from ..config.constants import AUTH_ENABLED, DEFAULT_ADMIN_USERNAME
+from .errors import error_response
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +76,7 @@ def login():
         })
     except Exception as e:
         logger.error(f"Login error: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 @bp.route('/credentials', methods=['GET'])
@@ -89,7 +90,7 @@ def get_credentials():
         return jsonify({"username": username})
     except Exception as e:
         logger.error(f"Get credentials error: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 @bp.route('/change-password', methods=['POST'])
@@ -127,7 +128,7 @@ def change_password():
         return jsonify({"message": "Password changed successfully"})
     except Exception as e:
         logger.error(f"Change password error: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 @bp.route('/change-credentials', methods=['POST'])
@@ -177,7 +178,7 @@ def change_credentials():
         return jsonify({"message": "Credentials changed successfully"})
     except Exception as e:
         logger.error(f"Change credentials error: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 @bp.route('/status', methods=['GET'])

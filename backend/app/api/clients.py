@@ -26,6 +26,7 @@ from ..config.constants import (
 )
 from ..exceptions import ClientNotFoundError, ClientAlreadyExistsError, ConfigError, ConfigValidationError
 from ..auth.tokens import require_auth
+from .errors import error_response
 
 logger = logging.getLogger(__name__)
 
@@ -163,7 +164,7 @@ def get_clients():
         return jsonify(listed)
     except Exception as e:
         logger.error(f"Error getting clients: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 @bp.route('/<username>/config/wireguard', methods=['GET'])
@@ -204,7 +205,7 @@ def get_client_config_wireguard_endpoint(username):
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         logger.error(f"Error getting client WireGuard config: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 @bp.route('/<username>/config/obfuscator', methods=['GET'])
@@ -235,7 +236,7 @@ def get_client_config_obfuscator_endpoint(username):
         return jsonify({"error": str(e)}), 404
     except Exception as e:
         logger.error(f"Error getting client obfuscator config: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 @bp.route('/<username>', methods=['GET'])
@@ -296,7 +297,7 @@ def get_client(username):
         return jsonify(client)
     except Exception as e:
         logger.error(f"Error getting client: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 @bp.route('', methods=['POST'])
@@ -332,7 +333,7 @@ def create_client():
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         logger.error(f"Error creating client: {e}")
-        return jsonify({"error": str(e)}), 400
+        return error_response(e, status=400)
 
 
 @bp.route('/generate-preshared-key', methods=['POST'])
@@ -346,7 +347,7 @@ def generate_preshared_key():
         })
     except Exception as e:
         logger.error(f"Error generating preshared key: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 @bp.route('/<username>', methods=['PATCH'])
@@ -471,7 +472,7 @@ def update_client(username):
         return jsonify(client), 200
     except Exception as e:
         logger.error(f"Error updating client: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 @bp.route('/<username>/regenerate-keys', methods=['POST'])
@@ -492,7 +493,7 @@ def regenerate_client_keys(username):
         return jsonify({"error": str(e)}), 404
     except Exception as e:
         logger.error(f"Error regenerating client keys: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 @bp.route('/<username>', methods=['DELETE'])
@@ -508,5 +509,5 @@ def remove_client(username):
         return jsonify({"error": str(e)}), 404
     except Exception as e:
         logger.error(f"Error deleting client: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
