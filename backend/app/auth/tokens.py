@@ -22,7 +22,7 @@ import logging
 from datetime import datetime
 from functools import wraps
 
-from flask import request, jsonify
+from flask import request, jsonify, current_app
 
 from ..config.constants import TOKEN_EXPIRES_IN, AUTH_ENABLED
 from ..database import (
@@ -98,28 +98,46 @@ class TokenManager:
         logger.info("All tokens revoked")
 
 
+def get_bearer_token():
+    """
+    Extract a Bearer token from the current request
+    
+    Returns:
+        (token, error_response) where error_response is a Flask (response, status)
+        tuple when the header is missing or invalid, otherwise (token, None).
+        When AUTH_ENABLED is False, returns (None, None) so callers can bypass.
+    """
+    if not AUTH_ENABLED:
+        return None, None
+    
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return None, (jsonify({"error": "Missing or invalid authorization header"}), 401)
+    
+    token = auth_header[7:].strip().replace('\n', '').replace('\r', '').replace(' ', '')
+    if not token:
+        return None, (jsonify({"error": "Missing or invalid authorization header"}), 401)
+    return token, None
+
+
 def require_auth(f):
     """
     Decorator to require authentication for Flask endpoints
     
-    Checks for Bearer token in Authorization header and validates it.
-    If AUTH_ENABLED is False, authentication is bypassed.
+    Checks for Bearer token in Authorization header and validates it against
+    current_app.token_manager. If AUTH_ENABLED is False, authentication is bypassed.
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not AUTH_ENABLED:
             return f(*args, **kwargs)
         
-        # Get token from Authorization header
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
-            return jsonify({"error": "Missing or invalid authorization header"}), 401
+        token, error = get_bearer_token()
+        if error:
+            return error
         
-        token = auth_header.split(' ')[1]
-        # Create temporary token manager to check token
-        # In practice, you'd pass the token manager instance
-        token_manager = TokenManager()
-        if not token_manager.is_valid(token):
+        token_manager = getattr(current_app, "token_manager", None)
+        if not token_manager or not token_manager.is_valid(token):
             return jsonify({"error": "Invalid or expired token"}), 401
         
         return f(*args, **kwargs)

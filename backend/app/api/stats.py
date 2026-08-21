@@ -19,41 +19,18 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from flask import Blueprint, request, jsonify, current_app, Response
 import logging
+from functools import wraps
 
-from ..config.constants import APP_VERSION
+from ..config.constants import APP_VERSION, AUTH_ENABLED
+from ..auth.tokens import require_auth, get_bearer_token
 
 logger = logging.getLogger(__name__)
 
 bp = Blueprint('stats', __name__)
 
 
-def require_auth(f):
-    """Decorator to require authentication"""
-    from functools import wraps
-    from ..config.constants import AUTH_ENABLED
-    
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not AUTH_ENABLED:
-            return f(*args, **kwargs)
-        
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
-            return jsonify({"error": "Missing or invalid authorization header"}), 401
-        
-        token = auth_header.split(' ')[1]
-        token_manager = current_app.token_manager
-        if not token_manager or not token_manager.is_valid(token):
-            return jsonify({"error": "Invalid or expired token"}), 401
-        
-        return f(*args, **kwargs)
-    return decorated_function
-
-
 def require_auth_or_metrics(f):
-    """Decorator to require authentication (JWT token or metrics token)"""
-    from functools import wraps
-    from ..config.constants import AUTH_ENABLED
+    """Decorator to require authentication (session token or metrics token)"""
     from ..database import get_metrics_token
     
     @wraps(f)
@@ -61,37 +38,20 @@ def require_auth_or_metrics(f):
         if not AUTH_ENABLED:
             return f(*args, **kwargs)
         
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
-            return jsonify({"error": "Missing or invalid authorization header"}), 401
+        token, error = get_bearer_token()
+        if error:
+            return error
         
-        # Extract token more safely - handle cases where token might have spaces or newlines
-        try:
-            # Remove 'Bearer ' prefix and strip whitespace
-            token = auth_header[7:].strip()
-            # Remove any newlines or carriage returns that might have been added
-            token = token.replace('\n', '').replace('\r', '').replace(' ', '')
-            
-            # Log token length for debugging (but not the token itself for security)
-            logger.debug(f"Received token, length: {len(token)}")
-        except (IndexError, AttributeError) as e:
-            logger.error(f"Error parsing authorization header: {e}")
-            return jsonify({"error": "Invalid authorization header format"}), 401
-        
-        # Check metrics token first
         metrics_token = get_metrics_token()
         if metrics_token:
-            # Normalize both tokens for comparison
             metrics_token_clean = metrics_token.strip().replace('\n', '').replace('\r', '').replace(' ', '')
-            token_clean = token.strip().replace('\n', '').replace('\r', '').replace(' ', '')
-            if token_clean == metrics_token_clean:
+            if token == metrics_token_clean:
                 logger.debug("Metrics token authentication successful")
                 return f(*args, **kwargs)
         
-        # Check JWT token
-        token_manager = current_app.token_manager
+        token_manager = getattr(current_app, "token_manager", None)
         if token_manager and token_manager.is_valid(token):
-            logger.debug("JWT token authentication successful")
+            logger.debug("Session token authentication successful")
             return f(*args, **kwargs)
         
         logger.warning(f"Authentication failed for token (length: {len(token)})")

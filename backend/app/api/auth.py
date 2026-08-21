@@ -20,42 +20,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from flask import Blueprint, request, jsonify, current_app
 import logging
 
-from ..auth.tokens import TokenManager
+from ..auth.tokens import TokenManager, require_auth
 from ..auth.password import verify_password, is_legacy_hash
 from ..config.constants import AUTH_ENABLED, DEFAULT_ADMIN_USERNAME
 
 logger = logging.getLogger(__name__)
 
 bp = Blueprint('auth', __name__)
-
-
-def get_token_manager():
-    """Get token manager from app context"""
-    from flask import g
-    return g.token_manager if hasattr(g, 'token_manager') else None
-
-
-def require_auth(f):
-    """Decorator to require authentication for Flask endpoints"""
-    from functools import wraps
-    
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not AUTH_ENABLED:
-            return f(*args, **kwargs)
-        
-        # Get token from Authorization header
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
-            return jsonify({"error": "Missing or invalid authorization header"}), 401
-        
-        token = auth_header.split(' ')[1]
-        token_manager = current_app.token_manager
-        if not token_manager or not token_manager.is_valid(token):
-            return jsonify({"error": "Invalid or expired token"}), 401
-        
-        return f(*args, **kwargs)
-    return decorated_function
 
 
 @bp.route('/login', methods=['POST'])

@@ -25,32 +25,11 @@ from datetime import datetime
 from flask import Blueprint, request, jsonify, current_app
 import pytz
 
+from ..auth.tokens import require_auth
+
 logger = logging.getLogger(__name__)
 
 bp = Blueprint('system', __name__)
-
-
-def require_auth(f):
-    """Decorator to require authentication"""
-    from functools import wraps
-    from ..config.constants import AUTH_ENABLED
-
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not AUTH_ENABLED:
-            return f(*args, **kwargs)
-
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
-            return jsonify({"error": "Missing or invalid authorization header"}), 401
-
-        token = auth_header.split(' ')[1]
-        token_manager = current_app.token_manager
-        if not token_manager or not token_manager.is_valid(token):
-            return jsonify({"error": "Invalid or expired token"}), 401
-
-        return f(*args, **kwargs)
-    return decorated_function
 
 
 def _is_valid_timezone(timezone_name):

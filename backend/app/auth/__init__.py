@@ -18,8 +18,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """Authentication and authorization module"""
 
-from .tokens import TokenManager, require_auth
+from .tokens import TokenManager, require_auth, get_bearer_token
 from .password import hash_password, verify_password, is_legacy_hash
 
-__all__ = ['TokenManager', 'require_auth', 'hash_password', 'verify_password', 'is_legacy_hash']
+__all__ = [
+    'TokenManager', 'require_auth', 'get_bearer_token',
+    'hash_password', 'verify_password', 'is_legacy_hash',
+]
 
