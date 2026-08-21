@@ -388,8 +388,10 @@ msg() {
     fi
 }
 
-# Trap to handle errors (only for critical failures)
-trap 'print_error "$(msg INSTALL_FAILED $LINENO)"' ERR INT TERM
+# Trap to handle errors (only for critical failures). Ctrl+C / SIGTERM just exit.
+trap 'print_error "$(msg INSTALL_FAILED $LINENO)"' ERR
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # Configuration
 TAG="latest"
@@ -850,7 +852,15 @@ get_external_ip() {
 }
 
 is_ipv4() {
-    [[ "$1" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]
+    local ip=$1
+    local octet
+    [[ "$ip" =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$ ]] || return 1
+    for octet in "${BASH_REMATCH[@]:1}"; do
+        if [ "$octet" -gt 255 ]; then
+            return 1
+        fi
+    done
+    return 0
 }
 
 resolve_domain_ipv4() {
@@ -1671,14 +1681,18 @@ main() {
 
     # Run Docker container
     print_info "$(msg STARTING_CONTAINER)"
+    local docker_password_args=()
+    if [ -n "$ADMIN_PASSWORD" ]; then
+        docker_password_args=(-e "ADMIN_PASSWORD=$ADMIN_PASSWORD")
+    fi
     docker run -d \
         --name "$CONTAINER_NAME" \
         -v "$CONFIG_DIR:/config" \
         -e WEB_PREFIX="$WEB_PREFIX" \
         -e EXTERNAL_IP="$EXTERNAL_IP" \
         -e EXTERNAL_PORT="$WIREGUARD_PORT" \
-        -e ADMIN_PASSWORD="$ADMIN_PASSWORD" \
-        -e LOG_LEVEL=DEBUG \
+        "${docker_password_args[@]}" \
+        -e LOG_LEVEL=INFO \
         -p "${WIREGUARD_PORT}:${WIREGUARD_PORT}/udp" \
         -p "${HTTP_PORT}:5000/tcp" \
         --cap-add NET_ADMIN \

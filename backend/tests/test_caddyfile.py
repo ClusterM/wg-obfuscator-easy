@@ -94,6 +94,20 @@ upsert_caddy_managed_block "{caddyfile}" "$block" "vpn.example"
     assert text.count(">>> wg-obfuscator-easy managed block") == 1
 
 
+def test_is_ipv4_rejects_out_of_range_octets(tmp_path):
+    result = subprocess.run(
+        ["bash", "-c", f"source '{INSTALL_SH}'\n"
+         "is_ipv4 1.2.3.4 && echo ok\n"
+         "is_ipv4 999.999.999.999 || echo bad\n"
+         "is_ipv4 vpn.example || echo host\n"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip().splitlines() == ["ok", "bad", "host"]
+
+
 def test_ip_mode_puts_email_inside_issuer(tmp_path):
     result = run_helpers(
         'render_caddy_managed_block "203.0.113.1" "8080" "https" "ip" "admin@example.com"',
