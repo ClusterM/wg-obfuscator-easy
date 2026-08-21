@@ -7,7 +7,7 @@ until command -v wg &> /dev/null; do
     sleep 1
 done
 
-# Start Flask application directly (no Gunicorn needed for single worker)
-echo "Starting Flask application..."
+# Single-process waitress (or Flask debug server when FLASK_DEBUG=true)
+echo "Starting application..."
 exec python3 -m app.main
 

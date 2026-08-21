@@ -35,4 +35,7 @@ RUN apt-get update && \
 #RUN apt-get install -y \
 #    iputils-ping curl psmisc net-tools
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD python3 -c "import os,urllib.request; p=os.getenv('WEB_PREFIX','').strip(); p=('/'+p if p and not p.startswith('/') else p).rstrip('/'); urllib.request.urlopen('http://127.0.0.1:5000'+p+'/health')"
+
 ENTRYPOINT ["tini", "--", "./docker-entrypoint.sh"]

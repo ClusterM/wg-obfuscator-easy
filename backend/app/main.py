@@ -159,57 +159,33 @@ def main():
         external_port
     )
     
-    # Get Flask configuration
     use_reloader = os.getenv("USE_RELOADER", "false").lower() == "true"
     debug = os.getenv("FLASK_DEBUG", "false").lower() == "true"
     
-    # Start Flask server
     try:
-        logger.info(f"Starting Flask server on 0.0.0.0:{API_PORT} (HTTP)")
-        # Suppress Werkzeug and Flask startup messages
-        import sys
-        
-        # Redirect stdout/stderr temporarily to suppress Flask startup messages
-        original_stdout = sys.stdout
-        original_stderr = sys.stderr
-        
-        # Create a filter that only allows our logger messages
-        class LogFilter:
-            def __init__(self, original):
-                self.original = original
-                self.allow_patterns = []
-            
-            def write(self, text):
-                # Block Werkzeug/Flask startup messages
-                if any(x in text for x in ['Running on', 'WARNING: This is a development server', '* ']):
-                    return
-                # Allow everything else (errors, etc.)
-                self.original.write(text)
-            
-            def flush(self):
-                self.original.flush()
-        
-        # Only filter if not in debug mode (to allow debugging)
-        if not debug:
-            sys.stdout = LogFilter(original_stdout)
-            sys.stderr = LogFilter(original_stderr)
-        
-        try:
-            # For production, use threaded mode for concurrent request handling
+        if debug:
+            logger.info(f"Starting Flask debug server on 0.0.0.0:{API_PORT}")
             threaded = os.getenv("FLASK_THREADED", "true").lower() == "true"
             app.run(
-                host='0.0.0.0', 
-                port=API_PORT, 
-                debug=debug, 
-                use_reloader=use_reloader, 
-                threaded=threaded
+                host="0.0.0.0",
+                port=API_PORT,
+                debug=True,
+                use_reloader=use_reloader,
+                threaded=threaded,
             )
-        finally:
-            # Restore original stdout/stderr
-            sys.stdout = original_stdout
-            sys.stderr = original_stderr
+        else:
+            from waitress import serve
+            threads = int(os.getenv("WAITRESS_THREADS", "8"))
+            logger.info(f"Starting waitress on 0.0.0.0:{API_PORT} with {threads} threads")
+            serve(
+                app,
+                host="0.0.0.0",
+                port=API_PORT,
+                threads=threads,
+                ident="wg-obf-easy",
+            )
     except Exception as e:
-        logger.error(f"Flask server error: {e}")
+        logger.error(f"HTTP server error: {e}")
         return 1
     finally:
         cleanup()

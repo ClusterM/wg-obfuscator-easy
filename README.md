@@ -84,6 +84,8 @@ After starting the container, access the web interface at:
 - `ADMIN_PASSWORD` - Admin password (default: `admin`)
 - `AUTH_ENABLED` - Enable/disable authentication (default: `true`)
 - `LOG_LEVEL` - Logging level: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` (default: `INFO`)
+- `FLASK_DEBUG` - Use the Flask development server instead of waitress (default: `false`)
+- `WAITRESS_THREADS` - Thread count for the waitress production server (default: `8`)
 
 ## Docker Images
 
