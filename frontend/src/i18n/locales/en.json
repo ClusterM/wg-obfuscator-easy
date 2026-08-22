@@ -153,7 +153,7 @@
     "allowCleanDescription": "When enabled, the server also accepts plain (clean) WireGuard clients on the same port, alongside obfuscated ones.",
     "obfuscationKey": "Obfuscation Key",
     "obfuscationKeyPlaceholder": "Enter obfuscation key",
-    "obfuscationKeyDescription": "Obfuscation key for client-server communication. Can be any string up to 300 characters (ASCII only).",
+    "obfuscationKeyDescription": "Obfuscation key for client-server communication. Letters and digits only, up to 300 characters.",
     "generateRandomKey": "Generate",
     "verbosityLevel": "Obfuscator Log Verbosity Level",
     "verbosityLevelDescription": "More detailed logs can help troubleshoot issues if they occur.",

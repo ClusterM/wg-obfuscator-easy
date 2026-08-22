@@ -164,6 +164,16 @@ def get_external_port() -> int:
         raise ConfigError(f"Invalid EXTERNAL_PORT value: {external_port}")
 
 
+# Written as `key = ...` in the obfuscator config. `#` starts a comment there,
+# so the key must stay alphanumeric.
+OBFUSCATION_KEY_ALPHABET = string.ascii_letters + string.digits
+
+
+def is_valid_obfuscation_key(key: str) -> bool:
+    """Return True if key is empty or contains only ASCII letters and digits."""
+    return all(c in OBFUSCATION_KEY_ALPHABET for c in key)
+
+
 def generate_obfuscation_key(length: int = 64) -> str:
     """
     Generate random obfuscation key
@@ -172,9 +182,9 @@ def generate_obfuscation_key(length: int = 64) -> str:
         length: Key length in characters
         
     Returns:
-        Random ASCII string
+        Random alphanumeric string
     """
-    return ''.join(secrets.choice(string.ascii_letters + string.digits + '!@#$%^&*()_+-=[]{}|;:,.<>?') for _ in range(length))
+    return ''.join(secrets.choice(OBFUSCATION_KEY_ALPHABET) for _ in range(length))
 
 
 def initialize_config(config_manager) -> None:

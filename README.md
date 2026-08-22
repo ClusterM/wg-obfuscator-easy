@@ -170,7 +170,7 @@ After you edit **General Settings**, click **Save**.
 - **Subnet** — private network for VPN clients, always with a `/24` mask (for example `10.66.66.0/24`). Change it only if those addresses already exist on the clients' own networks.
 - **Enable Obfuscation** — recommended. Off means plain WireGuard only, which is easier for an ISP to block.
 - **Allow non-obfuscated connections** — accept both obfuscated and plain WireGuard on the same port. Useful if some devices cannot run the obfuscator.
-- **Obfuscation Key** — shared secret used by obfuscation. Every client config includes it. If you change it, **every** device needs a new obfuscator config. Click **Generate** for a random key.
+- **Obfuscation Key** — shared secret used by obfuscation (letters and digits only). Every client config includes it. If you change it, **every** device needs a new obfuscator config. Click **Generate** for a random key.
 - **Default Masking** — `NONE` (obfuscated, no extra disguise) or `STUN` (looks more like video-call traffic). If WireGuard is blocked, try `STUN`.
 - **Disallow Other Masking** — clients cannot pick a different masking type.
 - **Obfuscator Log Verbosity Level** — how detailed the **server** logs are (shown on the Dashboard). `INFO` is fine for daily use.

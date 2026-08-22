@@ -2,7 +2,13 @@
 
 import pytest
 
-from app.utils import parse_listen_port_env, get_effective_listen_port, resolve_external_ipv4
+from app.utils import (
+    parse_listen_port_env,
+    get_effective_listen_port,
+    resolve_external_ipv4,
+    generate_obfuscation_key,
+    is_valid_obfuscation_key,
+)
 from app.exceptions import ConfigError
 
 
@@ -42,3 +48,22 @@ def test_resolve_external_ipv4_literal():
 def test_resolve_external_ipv4_rejects_ipv6_literal():
     with pytest.raises(ConfigError):
         resolve_external_ipv4("::1")
+
+
+def test_generate_obfuscation_key_is_alphanumeric():
+    key = generate_obfuscation_key()
+    assert len(key) == 64
+    assert is_valid_obfuscation_key(key)
+    assert "#" not in key
+
+
+@pytest.mark.parametrize("key,expected", [
+    ("", True),
+    ("Abc123", True),
+    ("key#value", False),
+    ("key;value", False),
+    ("key value", False),
+    ("ключ", False),
+])
+def test_is_valid_obfuscation_key(key, expected):
+    assert is_valid_obfuscation_key(key) is expected

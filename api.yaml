@@ -667,7 +667,7 @@ paths:
                 obfuscation_key:
                   type: string
                   maxLength: 300
-                  description: Obfuscation key (printable ASCII only, max 300 characters)
+                  description: Obfuscation key (letters and digits only, max 300 characters)
                 masking_type:
                   type: string
                   enum: [NONE, STUN]
@@ -1161,7 +1161,7 @@ components:
           description: Allow non-obfuscated (clean WireGuard) connections on the obfuscator port
         obfuscation_key:
           type: string
-          description: Obfuscation key
+          description: Obfuscation key (letters and digits only)
         masking_type:
           type: string
           enum: [NONE, STUN]
