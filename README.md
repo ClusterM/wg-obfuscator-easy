@@ -12,14 +12,14 @@ This project integrates with [WireGuard Obfuscator](https://github.com/ClusterM/
 - 🔐 **Client Management** - Create, edit, delete, and manage WireGuard clients with automatic client configuration generation
 - 📊 **Real-time Statistics** - Monitor server status, client connections, and traffic statistics
 - 🛡️ **Traffic Obfuscation** - Configure and manage WireGuard Obfuscator for bypassing DPI restrictions
-- 🔒 **Secure Authentication** - JWT-based authentication with rate limiting protection
+- 🔒 **Secure Authentication** - Token-based authentication with login rate limiting
 - 📱 **Multi-language Support** - English and Russian interfaces
 - 🐳 **Docker-Only** - Designed exclusively for Docker containers
 - 🚀 **Easy Installation** - One-command automated installation script
 - 🔒 **HTTPS Support** - Automatic SSL certificate management with Caddy (via installation script)
 - 📡 **REST API** - Full OpenAPI 3.0 specification for integration
 
-## Quick Start
+## Installation
 
 ### Automated Installation
 
@@ -75,7 +75,7 @@ After starting the container, access the web interface at:
 ### Environment Variables
 
 - `WEB_PREFIX` - Web interface path prefix (e.g., `/vpn/`)
-- `EXTERNAL_IP` - Server address given to clients (IPv4 or hostname/DDNS). Used as-is in Endpoint and obfuscator `target`. When generating an obfuscated WireGuard config, hostnames are resolved to A records so those `/32` addresses can be excluded from AllowedIPs (unless the client keeps the server in AllowedIPs). A downloaded config will not update if the hostname later points to a new IP.
+- `EXTERNAL_IP` - Server address given to clients. Can be an IPv4 address or a domain name (including DDNS). Used as-is in Endpoint and obfuscator `target`. When generating an obfuscated WireGuard config, domain names are resolved to A records so those `/32` addresses can be excluded from AllowedIPs (unless the client keeps the server in AllowedIPs). A downloaded config will not update if the domain later points to a new IP.
 - `EXTERNAL_PORT` - Port written into client configs (WG Endpoint and obfuscator `target`)
 - `LISTEN_PORT` - Initial UDP port the container listens on (obfuscator, or WireGuard when obfuscation is off). Used only if `listen_port` is not already stored in the database. If unset or if `listen_port` is `null`, the container listens on `EXTERNAL_PORT`. Map Docker UDP as `-p <listen>:<listen>/udp`; DNAT/port forwards on the router should target this port. Change later via `GET`/`PATCH /api/config` (`listen_port`; `null` means follow `EXTERNAL_PORT`).
   > **Note:** changing `listen_port` through the API only changes the port inside the container. Docker port publishing (`-p`) is fixed when the container is created, so the new port stays unreachable until you recreate the container with a matching `-p <listen>:<listen>/udp` (`install.sh` publishes `EXTERNAL_PORT` only). Use it when a reverse proxy or manual port mapping already forwards traffic to that port.
@@ -87,6 +87,110 @@ After starting the container, access the web interface at:
 - `FLASK_DEBUG` - Use the Flask development server instead of waitress (default: `false`)
 - `WAITRESS_THREADS` - Thread count for the waitress production server (default: `8`)
 
+## Usage
+
+You do not need to know how WireGuard works to use this panel. After installation, open the URL the installer printed, create a client, and import the configs on the phone or computer.
+
+### Open the panel
+
+**After the automated installer:**
+- HTTP: `http://your-server-ip/your-prefix/`
+- HTTPS: `https://your-server-ip/your-prefix/` (or your domain, if you chose one)
+
+**After a manual Docker run:**
+- HTTP: `http://your-server-ip:5000/your-prefix/`
+
+Log in with the username and password from the installer (default username is `admin`). Change the password on the **Configuration** page as soon as you can.
+
+At the top of every page:
+- A switch that starts or stops the VPN server — leave it on
+- Light / dark theme
+- Language (English or Russian)
+- Logout
+
+There are three tabs: **Dashboard**, **Clients**, and **Configuration**.
+
+### Connect a device
+
+1. Open **Clients** and click **Add Client**.
+2. Type a name (for example `phone`) and click **Create**. Leave **Enable** checked.
+3. Click the new client in the list.
+4. Copy a config or show its **QR Code**, then import it on the device.
+
+Obfuscation is **on** by default. The device then needs two pieces:
+
+- **WireGuard Obfuscator config** — install [WireGuard Obfuscator](https://github.com/ClusterM/wg-obfuscator) on the device and load this config. It hides WireGuard traffic so filters that block WireGuard often miss it.
+- **WireGuard config** — install the official [WireGuard](https://www.wireguard.com/) app and import this config. WireGuard talks to the obfuscator on the same device, not to the internet directly.
+
+If you turn obfuscation **off** on the Configuration page, you only need the WireGuard app and the WireGuard config.
+
+If **Allow non-obfuscated connections** is enabled, the client card shows both paths: a plain WireGuard config, and the obfuscated pair.
+
+When the device is online, the client row shows **Connected**. The Dashboard also shows how many clients are online.
+
+If you change that client's settings, the obfuscation key, or the server keys, import the new configs on the device again. Old files will stop working.
+
+### Dashboard
+
+This is the status page. It refreshes by itself.
+
+- **WireGuard** / **Obfuscator** — should say **Running** while the server is on
+- **Clients connected/total**
+- **External IP** and **External Port** — address and port written into client configs (an IPv4 address or a domain name)
+- **Server IP** — the server's own address inside the VPN
+- **Subnet** — private address range given to clients
+- **Public Key** — the server's WireGuard public key
+- **Recent Logs** — last messages from the obfuscator; look here if a client cannot connect
+
+### Clients
+
+Each row is one device. Click a row to open details, keys, traffic, and configs.
+
+- **Enable / disable** — a disabled client cannot connect
+- **Delete** — removes the client; its old config stops working
+- **Regenerate Keys** — creates new keys for that client; the device must import a new config
+
+#### Client settings
+
+These options only change the generated config for that device. They do not change how the server itself runs. Leave the defaults if you are not sure.
+
+- **Enable preshared key** — optional extra shared secret for this client. Stronger, but the key must be in the client's config. Generate one or paste an existing WireGuard key.
+- **Override Masking Type** — disguise traffic as another protocol for this client only. **Use Default** follows the server setting. This control is unavailable if **Disallow Other Masking** is on.
+- **Obfuscator Port** — port on the *device* between WireGuard and the obfuscator (not the public server port). Change it only if that port is already used on the phone or PC.
+- **Allowed IP Addresses** — which destinations go through the VPN. `0.0.0.0/0` means "all internet traffic". Use a smaller subnet only if you want some traffic to stay outside the VPN.
+- **Do not exclude the server address from AllowedIPs** — leave this off. The panel already excludes the server address so the connection does not loop. Turn it on only if you handle that another way.
+- **Obfuscator Log Verbosity Level** — how detailed the obfuscator logs are on the device. Raise it only when debugging.
+
+### Configuration
+
+After you edit **General Settings**, click **Save**.
+
+#### General settings
+
+- **Subnet** — private network for VPN clients, always with a `/24` mask (for example `10.66.66.0/24`). Change it only if those addresses already exist on the clients' own networks.
+- **Enable Obfuscation** — recommended. Off means plain WireGuard only, which is easier for an ISP to block.
+- **Allow non-obfuscated connections** — accept both obfuscated and plain WireGuard on the same port. Useful if some devices cannot run the obfuscator.
+- **Obfuscation Key** — shared secret used by obfuscation. Every client config includes it. If you change it, **every** device needs a new obfuscator config. Click **Generate** for a random key.
+- **Default Masking** — `NONE` (obfuscated, no extra disguise) or `STUN` (looks more like video-call traffic). If WireGuard is blocked, try `STUN`.
+- **Disallow Other Masking** — clients cannot pick a different masking type.
+- **Obfuscator Log Verbosity Level** — how detailed the **server** logs are (shown on the Dashboard). `INFO` is fine for daily use.
+
+#### WireGuard server keys
+
+Shows the server public key. **Regenerate Server Keys** breaks every existing client until they import new configs. Do not press this unless you know you need new keys.
+
+#### Prometheus metrics token
+
+Optional. Only if you scrape metrics with Prometheus. Generate a token, then send `Authorization: Bearer <token>` to `/api/metrics/...`. Most users can ignore this.
+
+#### System timezone
+
+Affects timestamps in logs only. It does not change VPN behavior.
+
+#### Admin credentials
+
+Change the panel username and/or password. You must enter the current password. After a change you will be asked to log in again.
+
 ## Docker Images
 
 Docker images are available on Docker Hub: **`clustermeerkat/wg-obf-easy`**
@@ -94,7 +198,7 @@ Docker images are available on Docker Hub: **`clustermeerkat/wg-obf-easy`**
 ### Available Tags
 
 - `latest` - Latest stable release
-- `nightly` - Latest build from main branch (may be unstable)
+- `nightly` - Latest build from the master branch (may be unstable)
 - Version tags (e.g., `1.0`) - Specific version releases
 
 ### Supported Architectures
@@ -180,48 +284,27 @@ wg-obf-easy/
 └── README.md               # This file
 ```
 
-## Web Interface
-
-The web interface provides:
-
-- **Dashboard** - Server status, statistics, and system information
-- **Clients** - Manage WireGuard clients (create, edit, delete, download configs)
-- **Configuration** - Server and WireGuard settings
-- **Real-time Updates** - Automatic refresh of statistics and status
-
-### Accessing the Web Interface
-
-**With automated installation script:**
-- HTTP: `http://your-server-ip/your-prefix/`
-- HTTPS: `https://your-server-ip/your-prefix/` (via Caddy reverse proxy and Let's Encrypt; a domain can be used instead)
-
-**With manual Docker installation:**
-- HTTP: `http://your-server-ip:5000/your-prefix/` (direct container access)
-- HTTPS: Set up your own reverse proxy (Nginx, Caddy, Traefik, etc.)
-
-Default credentials:
-- Username: `admin`
-- Password: (generated during installation or set via `ADMIN_PASSWORD`)
-
 ## REST API
-
-The application provides a complete REST API documented in OpenAPI 3.0 format. See `api.yaml` for full specification.
 
 ### API Endpoints
 
-- **Authentication**: `/api/auth/login` - Login and get JWT token
+The full API documentation is the OpenAPI 3.0 file [`api.yaml`](api.yaml) in this repository. Open it in Swagger UI, Redoc, or any other OpenAPI viewer for request parameters, bodies, and responses.
+
+Overview of the endpoint groups:
+
+- **Authentication**: `/api/auth/login` - Login and get an access token
 - **Clients**: `/api/clients/*` - Client management (CRUD operations)
 - **Configuration**: `/api/config/*` - Server configuration
 - **Statistics**: `/api/stats/*` - Server and client statistics
-- **Metrics**: `/api/metrics/*` - Prometheus-compatible metrics (requires JWT or metrics token). Includes overall service status and client statuses.
+- **Metrics**: `/api/metrics/*` - Prometheus-compatible metrics (requires an access token or a metrics token). Includes overall service status and client statuses.
 - **Health**: `/health` - Health check endpoint
 
 ### Authentication
 
-Most API endpoints require authentication. Include the JWT token in the `Authorization` header:
+Most API endpoints require authentication. Include the access token in the `Authorization` header:
 
 ```
-Authorization: Bearer <your-jwt-token>
+Authorization: Bearer <your-access-token>
 ```
 
 #### Metrics Token
@@ -238,29 +321,6 @@ Include the token in Prometheus scrape jobs via the standard `Authorization: Bea
 
 - Login endpoint: 5 attempts per minute per IP
 - Other API endpoints are not rate limited by default; configure rate limiting at your reverse proxy if required
-
-## Configuration
-
-### WireGuard Configuration
-
-WireGuard settings are managed through the web interface or API. Key settings include:
-
-- Subnet configuration
-- WAN interface
-- WireGuard interface name
-- WireGuard keys
-- Obfuscation settings
-
-### Obfuscator Configuration
-
-The obfuscator integrates with [WireGuard Obfuscator](https://github.com/ClusterM/wg-obfuscator). Configuration is managed through the web interface.
-
-Key features:
-- Enable/disable obfuscation
-- Allow non-obfuscated (clean WireGuard) connections alongside obfuscated ones
-- Configure masking types (NONE, STUN)
-- Set obfuscator ports
-- View real-time obfuscator logs
 
 ## Development
 
@@ -320,8 +380,8 @@ Note: The frontend needs to connect to a running backend container. Configure th
 - **Change default password** - Always change the admin password after installation
 - **Use HTTPS** - Enable HTTPS in production (automatic with installation script via Caddy)
 - **Firewall** - Configure firewall rules to restrict access to the container ports
-- **Rate limiting** - API endpoints are rate-limited to prevent abuse
-- **Authentication** - JWT tokens expire after 24 hours
+- **Rate limiting** - Login is limited to 5 attempts per minute per IP; other API endpoints are not rate-limited by default
+- **Authentication** - Access tokens expire after 24 hours
 - **Container isolation** - The application runs in a Docker container with required Linux capabilities
 - **Reverse proxy** - For production, use a reverse proxy (Caddy, Nginx, etc.) outside the container for additional security
 
