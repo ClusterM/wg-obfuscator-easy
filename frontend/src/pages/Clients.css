@@ -735,10 +735,15 @@
   justify-content: flex-end;
 }
 
-.actions-cell {
+.activation-cell {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  justify-content: flex-start;
+}
+
+.deletion-cell {
+  display: flex;
+  align-items: center;
   justify-content: flex-end;
 }
 

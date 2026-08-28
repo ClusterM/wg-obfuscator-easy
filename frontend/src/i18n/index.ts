@@ -1,23 +1,15 @@
-import i18n from 'i18next';
-import { initReactI18next } from 'react-i18next';
-import LanguageDetector from 'i18next-browser-languagedetector';
-import en from './locales/en.json';
-import ru from './locales/ru.json';
+import { initReactI18next } from "react-i18next";
+
+import i18n from "i18next";
+import LanguageDetector from "i18next-browser-languagedetector";
+import resourcesToBackend from "i18next-resources-to-backend";
+
+import { config } from "./config";
 
 i18n
+  .use(resourcesToBackend((lng: string, ns: string) => import(`./locales/${lng}/${ns}.json`)))
   .use(LanguageDetector)
   .use(initReactI18next)
-  .init({
-    resources: {
-      en: { translation: en },
-      ru: { translation: ru },
-    },
-    fallbackLng: 'en',
-    defaultNS: 'translation',
-    interpolation: {
-      escapeValue: false,
-    },
-  });
+  .init(config);
 
 export default i18n;
-

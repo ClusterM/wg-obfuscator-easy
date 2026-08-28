@@ -1,17 +1,17 @@
 import { useTheme } from '../hooks/useTheme';
-// import { useTranslation } from 'react-i18next';
+import { useTranslation } from 'react-i18next';
 import './ThemeToggle.css';
 
 export default function ThemeToggle() {
   const { theme, toggleTheme } = useTheme();
-  // const { t } = useTranslation();
+  const { t } = useTranslation();
 
   return (
     <button
       onClick={toggleTheme}
       className="theme-toggle-btn"
-      title={theme === 'light' ? 'Switch to Dark Theme' : 'Switch to Light Theme'}
-      aria-label="Toggle theme"
+      title={theme === 'light' ? t('common.switchToDark') : t('common.switchToLight')}
+      aria-label={t('common.toggleTheme')}
     >
       {theme === 'light' ? (
         <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">

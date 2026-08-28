@@ -690,13 +690,14 @@ export default function Clients() {
           <table className="clients-table">
             <thead>
               <tr>
+                <th>{t('common.activation')}</th>
                 <th>{t('clients.username')}</th>
                 <th>{t('clients.connection')}</th>
                 <th>{t('clients.ip')}</th>
                 <th>{t('clients.publicKey')}</th>
                 <th>{t('clients.received')}</th>
                 <th>{t('clients.sent')}</th>
-                <th>{t('common.actions')}</th>
+                <th> </th>
               </tr>
             </thead>
             <tbody>
@@ -707,6 +708,22 @@ export default function Clients() {
                   onClick={() => handleClientClick(client)}
                   style={{ cursor: 'pointer' }}
                 >
+                  <td>
+                    <div className="activation-cell">
+                      <label 
+                        className="toggle-switch"
+                        onClick={(e) => e.stopPropagation()}
+                        title={client.enabled !== false ? t('clients.disableClient') : t('clients.enableClient')}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={client.enabled !== false}
+                          onChange={() => handleToggleEnabled(client.username, client.enabled !== false)}
+                        />
+                        <span className="slider"></span>
+                      </label>
+                    </div>
+                  </td>
                   <td>{client.username}</td>
                   <td>
                     <div className="connection-status">
@@ -729,19 +746,7 @@ export default function Clients() {
                     {client.tx_bytes !== undefined ? formatBytes(client.tx_bytes) : '-'}
                   </td>
                   <td>
-                    <div className="actions-cell">
-                      <label 
-                        className="toggle-switch"
-                        onClick={(e) => e.stopPropagation()}
-                        title={client.enabled !== false ? t('clients.disableClient') : t('clients.enableClient')}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={client.enabled !== false}
-                          onChange={() => handleToggleEnabled(client.username, client.enabled !== false)}
-                        />
-                        <span className="slider"></span>
-                      </label>
+                    <div className="deletion-cell">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();

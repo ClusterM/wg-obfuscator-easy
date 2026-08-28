@@ -12,13 +12,16 @@
     "confirm": "Confirm",
     "yes": "Yes",
     "no": "No",
-    "actions": "Actions",
+    "activation": "Activation",
     "search": "Search",
     "refresh": "Refresh",
     "copy": "Copy",
     "copied": "Copied to clipboard",
     "copyFailed": "Failed to copy to clipboard",
-    "showQR": "QR Code"
+    "showQR": "QR Code",
+    "switchToDark": "Switch to Dark Theme",
+    "switchToLight": "Switch to Light Theme",
+    "toggleTheme": "Toggle theme"
   },
   "auth": {
     "login": "Login",
@@ -210,4 +213,3 @@
     "validationError": "Validation error"
   }
 }
-
