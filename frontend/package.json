@@ -2,6 +2,7 @@
   "name": "wg-obf-easy-api-frontend",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
@@ -19,6 +20,7 @@
     "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
+    "@types/node": "^26.4.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
     "@vitejs/plugin-react": "^6.1.1",

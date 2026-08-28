@@ -620,7 +620,7 @@ export default function Clients() {
     title: string,
     value: string,
     type: 'wireguard' | 'wireguard-direct' | 'obfuscator',
-    textareaRef: RefObject<HTMLTextAreaElement>
+    textareaRef: RefObject<HTMLTextAreaElement | null>
   ) => (
     <div className="config-section">
       <h3>{title}</h3>

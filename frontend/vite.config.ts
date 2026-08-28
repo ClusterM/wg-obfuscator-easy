@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(() => {
   const apiPort = process.env.API_PORT || process.env.VITE_API_PORT || '5000';
   const apiUrl = process.env.VITE_API_URL || `http://localhost:${apiPort}`;
 
@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, './src'),
+        '@': path.resolve(import.meta.dirname, './src'),
       },
     },
     build: {
