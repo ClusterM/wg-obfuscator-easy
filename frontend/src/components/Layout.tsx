@@ -37,7 +37,7 @@ export default function Layout() {
     } catch (err: any) {
       // Revert on error
       setServerEnabled(!newValue);
-      alert(err.message || t('errors.serverError', { ns: "errors" }));
+      alert(err.message || t('errors.serverError'));
     }
   };
 

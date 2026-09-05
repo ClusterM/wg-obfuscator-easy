@@ -1,3 +1,4 @@
+import { isJsonResponse } from '@/utils/isJsonResponse';
 import axios, { AxiosInstance } from 'axios';
 
 // Get web prefix from window (injected by Flask server)
@@ -249,8 +250,7 @@ class ApiService {
       }
       
       // Check if the blob is actually an error JSON based on Content-Type
-      const contentType = response.headers["content-type"];
-      if ((typeof contentType === "string" || Array.isArray(contentType)) && contentType.includes("application/json")) {
+      if (isJsonResponse(response.headers["content-type"])) {
         try {
           const text = await response.data.text();
           const errorObj = JSON.parse(text);

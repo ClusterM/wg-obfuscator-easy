@@ -47,10 +47,10 @@
 }
 
 /* Right-align traffic columns (received/sent) - columns 5 and 6 */
-.clients-table th:nth-child(5),
-.clients-table td:nth-child(5),
 .clients-table th:nth-child(6),
-.clients-table td:nth-child(6) {
+.clients-table td:nth-child(6),
+.clients-table th:nth-child(7),
+.clients-table td:nth-child(7) {
   text-align: right;
 }
 
