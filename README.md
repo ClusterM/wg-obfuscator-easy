@@ -21,6 +21,55 @@ This project integrates with [WireGuard Obfuscator](https://github.com/ClusterM/
 - 🔒 **HTTPS Support** - Automatic SSL certificate management with Caddy (via installation script)
 - 📡 **REST API** - Full OpenAPI 3.0 specification for integration
 
+---
+
+## Table of contents
+
+- [Installation](#installation)
+   - [Automated Installation](#automated-installation)
+   - [Manual Docker Installation](#manual-docker-installation)
+   - [Environment Variables](#environment-variables)
+- [Usage](#usage)
+   - [Open the panel](#open-the-panel)
+   - [Connect a device](#connect-a-device)
+   - [Dashboard](#dashboard)
+   - [Clients](#clients)
+      - [Client settings](#client-settings)
+   - [Configuration](#configuration)
+      - [General settings](#general-settings)
+      - [WireGuard server keys](#wireguard-server-keys)
+      - [Prometheus metrics token](#prometheus-metrics-token)
+      - [System timezone](#system-timezone)
+      - [Admin credentials](#admin-credentials)
+- [Docker Images](#docker-images)
+   - [Available Tags](#available-tags)
+   - [Supported Architectures](#supported-architectures)
+- [Building from Source](#building-from-source)
+   - [Prerequisites](#prerequisites)
+   - [Build Steps](#build-steps)
+   - [Custom Build Options](#custom-build-options)
+- [Project Structure](#project-structure)
+- [REST API](#rest-api)
+   - [API Endpoints](#api-endpoints)
+   - [Authentication](#authentication)
+      - [Metrics Token](#metrics-token)
+   - [Rate Limiting](#rate-limiting)
+- [Development](#development)
+   - [Frontend Development (Outside Container)](#frontend-development-outside-container)
+- [Security Considerations](#security-considerations)
+- [Troubleshooting](#troubleshooting)
+   - [Container won't start](#container-wont-start)
+   - [Can't access web interface](#cant-access-web-interface)
+   - [WireGuard not working](#wireguard-not-working)
+   - [SSL certificate issues](#ssl-certificate-issues)
+- [Contributing](#contributing)
+- [License](#license)
+- [Related Projects](#related-projects)
+- [Support](#support)
+- [Donate](#donate)
+
+---
+
 ## Installation
 
 ### Automated Installation
@@ -217,7 +266,8 @@ Docker images are available on Docker Hub: **`clustermeerkat/wg-obf-easy`**
 
 ### Prerequisites
 
-- Node.js 18+ and npm
+- [Node.js 22 LTS](https://nodejs.org/en/about/previous-releases) or newer
+- [npm](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm)
 - Python 3.9+
 - Docker and Docker Buildx (for multi-arch builds)
 
