@@ -119,6 +119,8 @@ docker run -d \
   clustermeerkat/wg-obf-easy:latest
 ```
 
+> See also [Environment Variables](#environment-variables) section below.
+
 After starting the container, access the web interface at:
 - HTTP: `http://your-server-ip:5000/your-prefix/`
 - HTTPS: Terminate TLS in an external reverse proxy (Caddy, Nginx, Traefik, etc.) or use the automated installation script, which installs and configures Caddy automatically outside the container.
@@ -151,7 +153,7 @@ You do not need to know how WireGuard works to use this panel. After installatio
 **After a manual Docker run:**
 - HTTP: `http://your-server-ip:5000/your-prefix/`
 
-Log in with the username and password from the installer (default username is `admin`). Change the password on the **Configuration** page as soon as you can.
+Log in with the [username and password](#environment-variables) from the installer (default username is `admin`). Change the password on the **Configuration** page as soon as you can.
 
 At the top of every page:
 - A switch that starts or stops the VPN server — leave it on
@@ -274,29 +276,23 @@ Docker images are available on Docker Hub: **`clustermeerkat/wg-obf-easy`**
 ### Build Steps
 
 1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/ClusterM/wg-obfuscator-easy.git
-   cd wg-obfuscator-easy
-   ```
 
-2. **Build frontend:**
-   ```bash
-   cd frontend
-   npm install
-   npm run build
-   cd ..
-   ```
+```bash
+git clone https://github.com/ClusterM/wg-obfuscator-easy.git
+cd wg-obfuscator-easy
+```
 
-3. **Build Docker image:**
-   ```bash
-   make build
-   ```
+2. **Build Docker image:**
+```bash
+make build
+```
 
-   Or use the Makefile targets:
-   - `make all` or `make build` - Build multi-arch image without pushing
-   - `make push` - Build and push multi-arch image
-   - `make release` - Build and push with version tag from `backend/version.py`
-   - `make clean` - Clean build artifacts
+Or use the Makefile targets:
+
+- `make all` or `make build` — build a multi-platform image without pushing
+- `make push` — build and push a multi-platform image
+- `make release` — build and push with a version tag from `backend/version.py`
+- `make clean` — clean build artifacts
 
 ### Custom Build Options
 
@@ -304,6 +300,11 @@ You can override Makefile variables:
 
 ```bash
 make build PLATFORMS=linux/amd64,linux/arm64 TAG=nightly IMAGE_NAME=myregistry/wg-obf-easy
+```
+
+```bash
+# Build for current platform
+make build PLATFORMS=$(docker version --format '{{.Server.Os}}/{{.Server.Arch}}')
 ```
 
 ## Project Structure
