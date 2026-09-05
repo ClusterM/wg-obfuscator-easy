@@ -147,8 +147,8 @@ def create_app(config_manager, client_manager, wg_manager, obfuscator_manager,
             from ..config.constants import AUTH_ENABLED
             prefix_script = f'''
     <script>
-        window.__WEB_PREFIX__ = {repr(web_prefix)};
-        window.__AUTH_ENABLED__ = {repr(AUTH_ENABLED)};
+        window.__WEB_PREFIX__ = {json.dumps(web_prefix)};
+        window.__AUTH_ENABLED__ = {json.dumps(AUTH_ENABLED)};
     </script>'''
             
             if '</head>' in html_content:
