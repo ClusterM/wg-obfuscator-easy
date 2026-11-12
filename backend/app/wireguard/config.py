@@ -81,7 +81,11 @@ class WireGuardConfigGenerator:
             lines.append(f"PublicKey = {client['public_key']}")
             if client.get('preshared_key'):
                 lines.append(f"PresharedKey = {client['preshared_key']}")
-            lines.append(f"AllowedIPs = {config['subnet']}.{client['ip']}/32")
+            # VPN address plus subnets routed to this client (e.g. a router's LAN);
+            # wg-quick adds a route for every AllowedIPs entry automatically
+            peer_ips = [f"{config['subnet']}.{client['ip']}/32"]
+            peer_ips.extend(client.get('routed_ips') or [])
+            lines.append(f"AllowedIPs = {', '.join(peer_ips)}")
             lines.append("PersistentKeepalive = 25")
         
         lines.append("")

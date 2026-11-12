@@ -135,6 +135,7 @@ def init_database() -> None:
         if applied < 2:
             _migrate_to_v2(cursor)
             _set_schema_version(cursor, 2)
+        _ensure_routed_ips_column(cursor)
         
         logger.info("Database schema initialized successfully")
 
@@ -164,6 +165,27 @@ def _migrate_to_v1(cursor) -> None:
             "ALTER TABLE clients ADD COLUMN keep_server_in_allowed_ips INTEGER NOT NULL DEFAULT 0"
         )
         logger.info("Added keep_server_in_allowed_ips column to clients table")
+
+
+def _ensure_routed_ips_column(cursor) -> None:
+    """Add routed_ips column (subnets routed to a client on the server side).
+
+    Checked on every start instead of bumping schema_version, so the database
+    stays compatible with future upstream migrations."""
+    cursor.execute("PRAGMA table_info(clients)")
+    client_columns = {row["name"] for row in cursor.fetchall()}
+    if "routed_ips" not in client_columns:
+        cursor.execute("ALTER TABLE clients ADD COLUMN routed_ips TEXT NOT NULL DEFAULT '[]'")
+        logger.info("Added routed_ips column to clients table")
+
+
+def _parse_routed_ips(value) -> list:
+    """Decode routed_ips JSON from the database, tolerating bad data"""
+    try:
+        result = json.loads(value) if value else []
+        return [str(x) for x in result] if isinstance(result, list) else []
+    except (TypeError, ValueError):
+        return []
 
 
 def _migrate_to_v2(cursor) -> None:
@@ -298,6 +320,7 @@ def get_client(username: str) -> Optional[Dict[str, Any]]:
         client['enabled'] = bool(client['enabled'])
         client['preshared_key'] = client.get('preshared_key') or None
         client['keep_server_in_allowed_ips'] = bool(client.get('keep_server_in_allowed_ips', 0))
+        client['routed_ips'] = _parse_routed_ips(client.get('routed_ips'))
         # latest_handshake is already an integer from DB
         if 'latest_handshake' not in client:
             client['latest_handshake'] = 0
@@ -322,6 +345,7 @@ def get_all_clients() -> Dict[str, Dict[str, Any]]:
             client['enabled'] = bool(client['enabled'])
             client['preshared_key'] = client.get('preshared_key') or None
             client['keep_server_in_allowed_ips'] = bool(client.get('keep_server_in_allowed_ips', 0))
+            client['routed_ips'] = _parse_routed_ips(client.get('routed_ips'))
             # latest_handshake is already an integer from DB
             if 'latest_handshake' not in client:
                 client['latest_handshake'] = 0
@@ -454,6 +478,12 @@ def save_client(username: str, client_data: Dict[str, Any]) -> None:
                 now,
                 now
             ))
+
+        if "routed_ips" in client_data:
+            cursor.execute(
+                "UPDATE clients SET routed_ips = ? WHERE username = ?",
+                (json.dumps(list(client_data.get("routed_ips") or [])), username),
+            )
 
 
 def update_client_handshake(username: str, handshake: int) -> bool:

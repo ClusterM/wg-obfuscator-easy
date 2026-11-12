@@ -14,6 +14,7 @@ interface Client {
   preshared_key?: string | null;
   allowed_ips?: string[];
   keep_server_in_allowed_ips?: boolean;
+  routed_ips?: string[];
   obfuscator_port?: number;
   masking_type_override?: string;
   verbosity_level?: string;
@@ -48,6 +49,7 @@ export default function Clients() {
     verbosity_level?: string | null;
     allowed_ips?: string[];
     keep_server_in_allowed_ips?: boolean;
+    routed_ips?: string[];
     preshared_key_enabled?: boolean;
     preshared_key?: string;
   }>({});
@@ -359,6 +361,7 @@ export default function Clients() {
         verbosity_level: fullClient.verbosity_level || 'INFO',
         allowed_ips: fullClient.allowed_ips || ['0.0.0.0/0'],
         keep_server_in_allowed_ips: Boolean(fullClient.keep_server_in_allowed_ips),
+        routed_ips: fullClient.routed_ips || [],
         preshared_key_enabled: Boolean(fullClient.preshared_key),
         preshared_key: fullClient.preshared_key || '',
       });
@@ -441,6 +444,26 @@ export default function Clients() {
     setEditingClientSettings({ ...editingClientSettings, allowed_ips: newAllowedIps });
   };
 
+  const handleRoutedIpChange = (index: number, value: string) => {
+    setClientSettingsSuccess('');
+    const newRoutedIps = [...(editingClientSettings.routed_ips || [])];
+    newRoutedIps[index] = value;
+    setEditingClientSettings({ ...editingClientSettings, routed_ips: newRoutedIps });
+  };
+
+  const handleAddRoutedIp = () => {
+    setClientSettingsSuccess('');
+    const newRoutedIps = [...(editingClientSettings.routed_ips || []), ''];
+    setEditingClientSettings({ ...editingClientSettings, routed_ips: newRoutedIps });
+  };
+
+  const handleRemoveRoutedIp = (index: number) => {
+    setClientSettingsSuccess('');
+    const newRoutedIps = [...(editingClientSettings.routed_ips || [])];
+    newRoutedIps.splice(index, 1);
+    setEditingClientSettings({ ...editingClientSettings, routed_ips: newRoutedIps });
+  };
+
   const handleGeneratePresharedKey = async () => {
     try {
       setGeneratingPresharedKey(true);
@@ -498,6 +521,18 @@ export default function Clients() {
       if (!validateCidr(ip)) {
         setClientSettingsError(t('clients.allowedIpsInvalidFormat'));
         // Auto-hide error after 5 seconds
+        if (clientSettingsErrorTimeoutRef.current) {
+          clearTimeout(clientSettingsErrorTimeoutRef.current);
+        }
+        clientSettingsErrorTimeoutRef.current = setTimeout(() => setClientSettingsError(''), 5000);
+        return;
+      }
+    }
+
+    const routedIps = (editingClientSettings.routed_ips || []).filter(ip => ip.trim() !== '');
+    for (const ip of routedIps) {
+      if (!validateCidr(ip)) {
+        setClientSettingsError(t('clients.routedIpsInvalidFormat'));
         if (clientSettingsErrorTimeoutRef.current) {
           clearTimeout(clientSettingsErrorTimeoutRef.current);
         }
@@ -567,6 +602,9 @@ export default function Clients() {
         updateData.allowed_ips = (editingClientSettings.allowed_ips || []).filter(ip => ip.trim() !== '');
       }
       updateData.keep_server_in_allowed_ips = editingClientSettings.keep_server_in_allowed_ips === true;
+      if ('routed_ips' in editingClientSettings) {
+        updateData.routed_ips = (editingClientSettings.routed_ips || []).map(ip => ip.trim()).filter(ip => ip !== '');
+      }
       if ('verbosity_level' in editingClientSettings) {
         // Always send verbosity_level, default to INFO if not set
         updateData.verbosity_level = editingClientSettings.verbosity_level || 'INFO';
@@ -583,6 +621,7 @@ export default function Clients() {
         verbosity_level: updatedClient.verbosity_level || 'INFO',
         allowed_ips: updatedClient.allowed_ips || ['0.0.0.0/0'],
         keep_server_in_allowed_ips: Boolean(updatedClient.keep_server_in_allowed_ips),
+        routed_ips: updatedClient.routed_ips || [],
         preshared_key_enabled: Boolean(updatedClient.preshared_key),
         preshared_key: updatedClient.preshared_key || '',
       });
@@ -1000,6 +1039,37 @@ export default function Clients() {
                       <div className="field-description">{t('clients.presharedKeyDescription')}</div>
                     </div>
                   )}
+
+                  <div className="form-group">
+                    <label>{t('clients.routedIps')}</label>
+                    {(editingClientSettings.routed_ips || []).map((ip, index) => (
+                      <div key={index} className="allowed-ip-row">
+                        <input
+                          type="text"
+                          value={ip}
+                          onChange={(e) => handleRoutedIpChange(index, e.target.value)}
+                          placeholder="192.168.88.0/24"
+                          className={!validateCidr(ip) && ip !== '' ? 'invalid' : ''}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveRoutedIp(index)}
+                          className="btn-remove"
+                          title={t('clients.removeAllowedIp')}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={handleAddRoutedIp}
+                      className="btn-add-ip"
+                    >
+                      + {t('clients.addAllowedIp')}
+                    </button>
+                    <div className="field-description">{t('clients.routedIpsDescription')}</div>
+                  </div>
 
                   <div className="settings-warning">
                     {t('clients.settingsWarning')}

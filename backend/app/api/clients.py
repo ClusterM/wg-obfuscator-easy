@@ -65,6 +65,67 @@ def validate_username(username):
     return None
 
 
+ROUTED_IPS_MIN_PREFIX = 8
+
+
+def validate_routed_ips(routed_ips, username, config_manager):
+    """
+    Validate subnets routed to a client on the server side.
+
+    Returns (normalized_list, error_message). error_message is None when valid.
+    """
+    import ipaddress
+
+    if not isinstance(routed_ips, list):
+        return None, "routed_ips must be a list"
+
+    vpn_net = None
+    subnet = (config_manager.main or {}).get("subnet")
+    if subnet:
+        try:
+            vpn_net = ipaddress.ip_network(f"{subnet}.0/24", strict=True)
+        except ValueError:
+            vpn_net = None
+
+    other_nets = []
+    for other_name, other in (config_manager.clients or {}).items():
+        if other_name == username:
+            continue
+        for item in other.get("routed_ips") or []:
+            try:
+                other_nets.append((other_name, ipaddress.ip_network(item, strict=False)))
+            except ValueError:
+                continue
+
+    result = []
+    seen = []
+    for item in routed_ips:
+        if not isinstance(item, str):
+            return None, "routed_ips must be a list of strings"
+        item = item.strip()
+        if not item:
+            continue
+        try:
+            net = ipaddress.ip_network(item, strict=True)
+        except ValueError:
+            return None, f"Invalid subnet in routed_ips: {item}. Expected format: X.Y.Z.W/MASK with no host bits set (e.g., 192.168.88.0/24)"
+        if net.version != 4:
+            return None, f"Only IPv4 subnets are supported in routed_ips: {item}"
+        if net.prefixlen < ROUTED_IPS_MIN_PREFIX:
+            return None, f"Subnet {item} is too large: the prefix must be /{ROUTED_IPS_MIN_PREFIX} or longer, otherwise it would take over the server's own traffic"
+        if vpn_net is not None and net.overlaps(vpn_net):
+            return None, f"Subnet {item} overlaps the VPN subnet {vpn_net}"
+        for other_name, other_net in other_nets:
+            if net.overlaps(other_net):
+                return None, f"Subnet {item} overlaps {other_net}, which is already routed to client {other_name}"
+        for prev in seen:
+            if net.overlaps(prev):
+                return None, f"Subnets {prev} and {item} overlap"
+        seen.append(net)
+        result.append(str(net))
+    return result, None
+
+
 def apply_config_changes(app):
     """Apply configuration changes"""
     from ..services import ServiceManager
@@ -454,6 +515,13 @@ def update_client(username):
                     return jsonify({"error": "preshared_key must be a valid WireGuard key or null"}), 400
                 client["preshared_key"] = preshared_key
                 updated = True
+
+        if "routed_ips" in data:
+            routed_ips, routed_error = validate_routed_ips(data["routed_ips"], username, config_manager)
+            if routed_error:
+                return jsonify({"error": routed_error}), 400
+            client["routed_ips"] = routed_ips
+            updated = True
 
         if "keep_server_in_allowed_ips" in data:
             keep_server = data["keep_server_in_allowed_ips"]
