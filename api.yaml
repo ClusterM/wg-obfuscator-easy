@@ -454,6 +454,12 @@ paths:
                 keep_server_in_allowed_ips:
                   type: boolean
                   description: If true, do not exclude the server address from the obfuscated WireGuard AllowedIPs
+                routed_ips:
+                  type: array
+                  items:
+                    type: string
+                  description: IPv4 subnets located behind this client (e.g. a router's LAN). Added to the client's AllowedIPs in the server configuration, so the server routes them to this client. Prefix /8 or longer, must not overlap the VPN subnet or other clients' routed subnets. Empty list clears.
+                  example: ["192.168.88.0/24"]
       responses:
         '200':
           description: Client updated successfully
@@ -1083,6 +1089,11 @@ components:
         keep_server_in_allowed_ips:
           type: boolean
           description: If true, do not exclude the server address from the obfuscated WireGuard AllowedIPs
+        routed_ips:
+          type: array
+          items:
+            type: string
+          description: IPv4 subnets routed to this client on the server side (server-side AllowedIPs)
         obfuscator_port:
           type: integer
           nullable: true

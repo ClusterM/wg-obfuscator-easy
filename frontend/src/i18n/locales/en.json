@@ -131,6 +131,9 @@
     "allowedIPsDescription": "List of IP addresses and subnets for which packets will be routed through the VPN connection. Format: address/mask (e.g., 0.0.0.0/0 for all internet traffic). At least one subnet must be specified.",
     "keepServerInAllowedIps": "Do not exclude the server address from AllowedIPs",
     "keepServerInAllowedIpsDescription": "By default the server address is excluded from AllowedIPs in the obfuscated WireGuard config to avoid a routing loop. Enable this if the client avoids that loop another way.",
+    "routedIps": "Subnets behind this client (server-side routing)",
+    "routedIpsDescription": "Networks located behind this client, e.g. a router's LAN (192.168.88.0/24). The server will route traffic for them to this client, so other VPN clients can reach them. This changes the server configuration, not the client's. Leave empty if the client is a single device.",
+    "routedIpsInvalidFormat": "Invalid subnet behind the client. Use CIDR format with no host bits set (e.g., 192.168.88.0/24)",
     "verbosityLevel": "Obfuscator Log Verbosity Level",
     "verbosityLevelDescription": "Log verbosity level for the obfuscator on the client side. More detailed logs can help troubleshoot issues if they occur.",
     "clientSettingsUpdated": "Client settings updated successfully",
@@ -210,4 +213,3 @@
     "validationError": "Validation error"
   }
 }
-
